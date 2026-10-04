@@ -9,6 +9,8 @@ import java.net.URI
 
 /** Opie "Connect a device" QR, v1. See the device-pairing spec §3.3. */
 data class PairingPayload(val server: String, val key: String, val team: String, val project: String?) {
+    override fun toString() = "PairingPayload(server=$server, key=••••${key.takeLast(4)}, team=$team, project=$project)"
+
     companion object {
         private val json = Json { ignoreUnknownKeys = true }
 

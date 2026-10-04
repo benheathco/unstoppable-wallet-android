@@ -8,4 +8,7 @@ data class EvidenceConfig(
     val deviceId: String,
     val appVersion: String,
     val attributionEnabled: Boolean = true,
-)
+) {
+    override fun toString() =
+        "EvidenceConfig(serverUrl=$serverUrl, apiKey=••••${apiKey.takeLast(4)}, projectUuid=$projectUuid, deviceId=$deviceId, appVersion=$appVersion, attributionEnabled=$attributionEnabled)"
+}

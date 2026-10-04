@@ -58,6 +58,47 @@ class RegistrationStoreTest {
     }
 
     @Test
+    fun rejection_of_the_current_key_marks_it_rejected() {
+        val store = RegistrationStore(prefs, XorWrapper(), "1.0")
+        store.save(payload, project)
+        store.onAuthRejected("ab.secret")
+        assertTrue(store.registration.value!!.keyRejected)
+    }
+
+    @Test
+    fun rejection_reported_for_a_replaced_key_does_not_mark_rejected() {
+        val store = RegistrationStore(prefs, XorWrapper(), "1.0")
+        store.save(payload, project)
+        store.onAuthRejected("old.key")
+        assertFalse(store.registration.value!!.keyRejected)
+    }
+
+    @Test
+    fun rejection_while_unregistered_is_ignored() {
+        val store = RegistrationStore(prefs, XorWrapper(), "1.0")
+        store.onAuthRejected("ab.secret")
+        assertNull(store.registration.value)
+    }
+
+    @Test
+    fun evidence_config_to_string_redacts_the_api_key() {
+        val store = RegistrationStore(prefs, XorWrapper(), "1.0")
+        store.save(payload, project)
+        val text = store.config().toString()
+        assertFalse(text.contains("ab.secret"))
+        assertTrue(text.contains("••••cret"))
+    }
+
+    @Test
+    fun pairing_payload_and_wizard_state_to_string_redact_the_key() {
+        assertFalse(payload.toString().contains("ab.secret"))
+        assertTrue(payload.toString().contains("••••cret"))
+        val step = RegStep.Confirm(payload, listOf(project), project)
+        assertFalse(step.toString().contains("ab.secret"))
+        assertFalse(RegUiState(step = step).toString().contains("ab.secret"))
+    }
+
+    @Test
     fun clear_wipes_prefs_and_destroys_the_wrapping_key() {
         val wrapper = XorWrapper()
         val store = RegistrationStore(prefs, wrapper, "1.0")
