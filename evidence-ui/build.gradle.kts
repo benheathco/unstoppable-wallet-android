@@ -37,6 +37,7 @@ dependencies {
     implementation(project(":walletkit"))
     implementation(project(":evidence"))
     implementation(libs.androidx.startup)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.okhttp)
     implementation(libs.kotlinx.serialization.json)
     coreLibraryDesugaring(libs.desugar.jdk.libs)
