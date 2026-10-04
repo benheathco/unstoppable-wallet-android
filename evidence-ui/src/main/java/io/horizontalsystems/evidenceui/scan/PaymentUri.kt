@@ -24,8 +24,41 @@ fun parsePaymentQr(text: String): DecodedScan {
     val scheme = raw.substringBefore(':', "").lowercase()
     val network = schemes[scheme]
     if (network != null) {
-        val address = raw.substringAfter(':').removePrefix("//")
-            .substringBefore('?').substringBefore('@').substringBefore('/')
+        val afterScheme = raw.substringAfter(':').removePrefix("//")
+
+        // Try to extract address from query parameter first (for token transfers)
+        val queryParams = afterScheme.substringAfter('?', "")
+        val addressFromQuery = if (queryParams.isNotEmpty()) {
+            queryParams.split('&').find { it.startsWith("address=") }
+                ?.substringAfter("address=")
+                ?.substringBefore('&')
+        } else {
+            null
+        }
+
+        if (addressFromQuery != null && addressFromQuery.isNotEmpty()) {
+            return DecodedScan(raw, addressFromQuery, network)
+        }
+
+        // For ton scheme, extract the last non-empty path segment
+        if (scheme == "ton") {
+            val pathPart = afterScheme.substringBefore('?')
+            val segments = pathPart.split('/').filter { it.isNotEmpty() }
+            val address = segments.lastOrNull()
+            return DecodedScan(raw, address, network)
+        }
+
+        // Standard parsing: extract address before @ or /
+        var address = afterScheme
+            .substringBefore('?')
+            .substringBefore('@')
+            .substringBefore('/')
+
+        // Strip pay- prefix if present
+        if (address.startsWith("pay-")) {
+            address = address.removePrefix("pay-")
+        }
+
         return DecodedScan(raw, address.ifEmpty { null }, network)
     }
     return DecodedScan(raw, raw.takeIf { addressLike.matches(it) }, null)

@@ -36,4 +36,30 @@ class PairingPayloadTest {
             "",
         ).forEach { assertTrue(it, PairingPayload.parse(it).isFailure) }
     }
+
+    @Test
+    fun rejects_invalid_server_addresses() {
+        listOf(
+            ok.replace("http://localhost:8000", "http://"),
+            ok.replace("http://localhost:8000", "https://?"),
+            ok.replace("http://localhost:8000", "javascript:alert(1)"),
+        ).forEach { assertTrue(it, PairingPayload.parse(it).isFailure) }
+    }
+
+    @Test
+    fun rejects_blank_key() {
+        assertTrue(ok.replace(""","key":"ab.cd"""", ""), PairingPayload.parse(ok.replace(""","key":"ab.cd"""", "")).isFailure)
+    }
+
+    @Test
+    fun accepts_uppercase_scheme() {
+        val p = PairingPayload.parse(ok.replace("http://", "HTTP://")).getOrThrow()
+        assertEquals("HTTP://localhost:8000", p.server)
+    }
+
+    @Test
+    fun accepts_https_uppercase() {
+        val p = PairingPayload.parse(ok.replace("http://localhost:8000", "HTTPS://opie.example.com")).getOrThrow()
+        assertEquals("HTTPS://opie.example.com", p.server)
+    }
 }

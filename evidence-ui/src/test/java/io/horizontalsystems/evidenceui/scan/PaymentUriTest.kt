@@ -15,7 +15,8 @@ class PaymentUriTest {
 
     @Test
     fun eip681_strips_chain_and_function_suffixes() {
-        assertEquals("0xAbC", parsePaymentQr("ethereum:0xAbC@1/transfer?address=0x1").address)
+        assertEquals("0x1", parsePaymentQr("ethereum:0xAbC@1/transfer?address=0x1").address)
+        assertEquals("0xAbC", parsePaymentQr("ethereum:0xAbC@1").address)
         assertEquals("ethereum", parsePaymentQr("ethereum:0xAbC").network)
     }
 
@@ -30,5 +31,43 @@ class PaymentUriTest {
     @Test
     fun garbage_keeps_raw_payload_and_null_address() {
         assertEquals(DecodedScan("hello world", null, null), parsePaymentQr("hello world"))
+    }
+
+    @Test
+    fun strips_pay_prefix() {
+        assertEquals("0xAbC", parsePaymentQr("ethereum:pay-0xAbC@1").address)
+    }
+
+    @Test
+    fun extracts_last_path_segment_as_address() {
+        assertEquals("EQAbc", parsePaymentQr("ton://transfer/EQAbc").address)
+    }
+
+    @Test
+    fun extracts_query_parameter_address() {
+        assertEquals("0xRecipient", parsePaymentQr("ethereum:0xToken@1/transfer?address=0xRecipient").address)
+    }
+
+    @Test
+    fun uppercase_scheme_preserves_address_case() {
+        assertEquals("BC1QABC", parsePaymentQr("BITCOIN:BC1QABC").address)
+        assertEquals("bitcoin", parsePaymentQr("BITCOIN:BC1QABC").network)
+    }
+
+    @Test
+    fun tron_uri() {
+        assertEquals("THAddress", parsePaymentQr("tron:THAddress").address)
+        assertEquals("tron", parsePaymentQr("tron:THAddress").network)
+    }
+
+    @Test
+    fun solana_uri() {
+        assertEquals("SolAddr", parsePaymentQr("solana:SolAddr").address)
+        assertEquals("solana", parsePaymentQr("solana:SolAddr").network)
+    }
+
+    @Test
+    fun empty_bitcoin_uri() {
+        assertEquals(null, parsePaymentQr("bitcoin:").address)
     }
 }
