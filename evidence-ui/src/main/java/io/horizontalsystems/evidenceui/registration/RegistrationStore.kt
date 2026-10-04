@@ -21,7 +21,10 @@ data class Registration(
     val registeredAt: Long,
     val keyHardware: String,
     val keyRejected: Boolean,
-)
+) {
+    override fun toString() =
+        "Registration(server=$server, apiKey=••••${apiKey.takeLast(4)}, team=$team, project=$projectUuid, deviceId=$deviceId, keyRejected=$keyRejected)"
+}
 
 /** Registration lives only here; the API key is stored only as Keystore-wrapped ciphertext. */
 class RegistrationStore(
@@ -61,9 +64,12 @@ class RegistrationStore(
     }
 
     fun clear() {
-        prefs.edit().clear().commit()
-        wrapper.destroy()
-        _registration.value = null
+        try {
+            prefs.edit().clear().commit()
+            wrapper.destroy()
+        } finally {
+            _registration.value = null
+        }
     }
 
     fun config(): EvidenceConfig? = _registration.value?.let {

@@ -67,4 +67,28 @@ class RegistrationStoreTest {
         assertTrue(prefs.all.isEmpty())
         assertTrue(wrapper.destroyed)
     }
+
+    @Test
+    fun registration_to_string_redacts_the_api_key() {
+        val store = RegistrationStore(prefs, XorWrapper(), "1.0")
+        store.save(payload, project)
+        val text = store.registration.value.toString()
+        assertFalse(text.contains("ab.secret"))
+        assertTrue(text.contains("cret"))
+    }
+
+    @Test
+    fun clear_resets_state_even_if_destroy_throws() {
+        val wrapper = object : KeyWrapper {
+            override val hardware = "TEE"
+            override fun wrap(plain: ByteArray) = plain
+            override fun unwrap(blob: ByteArray) = blob
+            override fun destroy() = throw IllegalStateException("keystore gone")
+        }
+        val store = RegistrationStore(prefs, wrapper, "1.0")
+        store.save(payload, project)
+        runCatching { store.clear() }
+        assertNull(store.registration.value)
+        assertNull(store.config())
+    }
 }

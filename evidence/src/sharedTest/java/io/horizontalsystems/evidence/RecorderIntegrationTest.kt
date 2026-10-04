@@ -169,6 +169,28 @@ class RecorderIntegrationTest {
     }
 
     @Test
+    fun submitAll_waits_for_a_pending_artifact_write() = runBlocking {
+        val slowFirstRead = object : EvidenceDao by dao {
+            private var first = true
+            override suspend fun artifacts(clientRequestId: String): List<ArtifactEntity> {
+                if (first) {
+                    first = false
+                    delay(300)
+                }
+                return dao.artifacts(clientRequestId)
+            }
+        }
+        val recorder = DefaultEvidenceRecorder(context, { config }, slowFirstRead, scope, now = { "2026-10-04T00:00:00Z" })
+            .also { collectors += job.children }
+        recorder.recordScan(frame(), DecodedScan("0xabc", "0xabc", "ethereum"))
+        assertEquals(1, recorder.submitAll())
+        awaitIdle()
+
+        val capture = dao.capturesInState(CaptureState.READY).single()
+        assertEquals("""["scan_frame"]""", capture.expectedArtifacts)
+    }
+
+    @Test
     fun recordSend_without_tx_keeps_bundle_open() = runBlocking {
         val recorder = recorder()
         recorder.recordScan(frame(), DecodedScan("0xabc", "0xabc", "ethereum"))

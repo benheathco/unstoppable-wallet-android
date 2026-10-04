@@ -31,6 +31,7 @@ import io.horizontalsystems.evidence.upload.finalizeBundle
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
@@ -155,17 +156,24 @@ class DefaultEvidenceRecorder(
         }
     }
 
-    /** Manual Submit: finalize every OPEN bundle that has something to upload. */
+    /**
+     * Manual Submit: finalize every OPEN bundle that has something to upload. Runs on the same
+     * FIFO queue as artifact writes, so it never overtakes a pending write. Blocks; call off the main thread.
+     */
     fun submitAll(): Int = runBlocking(Dispatchers.IO) {
-        var submitted = 0
-        dao.capturesInState(CaptureState.OPEN).forEach { capture ->
-            if (dao.artifacts(capture.clientRequestId).isNotEmpty()) {
-                finalizeBundle(context, dao, capture.clientRequestId)
-                submitted++
+        scope.async {
+            queue.withLock {
+                var submitted = 0
+                dao.capturesInState(CaptureState.OPEN).forEach { capture ->
+                    if (dao.artifacts(capture.clientRequestId).isNotEmpty()) {
+                        finalizeBundle(context, dao, capture.clientRequestId)
+                        submitted++
+                    }
+                }
+                openBundleId = null
+                submitted
             }
-        }
-        openBundleId = null
-        submitted
+        }.await()
     }
 
     private fun enqueue(work: suspend () -> Unit) {
