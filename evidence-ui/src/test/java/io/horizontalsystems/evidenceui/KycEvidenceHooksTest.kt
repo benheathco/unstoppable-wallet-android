@@ -37,4 +37,19 @@ class KycEvidenceHooksTest {
         assertNotNull(hooks.registrationGate)
         assertNotNull(hooks.settingsEntry)
     }
+
+    @Test
+    fun unregistered_scan_is_not_recorded() {
+        val ctx = ApplicationProvider.getApplicationContext<Context>()
+        val h = KycEvidenceHooks(ctx, registered = { false }, record = { _, scan -> recorded += scan })
+        h.onPaymentQrScanned(Bitmap.createBitmap(4, 4, Bitmap.Config.ARGB_8888), "bitcoin:bc1qabc")
+        assertTrue(recorded.isEmpty())
+    }
+
+    @Test
+    fun throwing_recorder_does_not_propagate() {
+        val ctx = ApplicationProvider.getApplicationContext<Context>()
+        val h = KycEvidenceHooks(ctx, registered = { true }, record = { _, _ -> error("boom") })
+        h.onPaymentQrScanned(Bitmap.createBitmap(4, 4, Bitmap.Config.ARGB_8888), "bitcoin:bc1qabc")
+    }
 }

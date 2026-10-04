@@ -65,6 +65,16 @@ class LockGate(
         }
 
     /**
+     * True while EntryPage shows the evidence registration gate instead of the main screen. The
+     * gate is wallet UI, so it is never accessible while locked. Always false with stock hooks.
+     */
+    var registrationGateShowing: Boolean = false
+        set(value) {
+            field = value
+            recompute()
+        }
+
+    /**
      * Whether the main (tab) page is on top of the nav back stack. When it is, what the user
      * actually sees is the selected tab's content, so [currentPageAccessibleWhileLocked] alone
      * (true for the main page) does not tell whether the visible screen is public.
@@ -151,7 +161,7 @@ class LockGate(
      * the selected tab's content when the main page is on top, otherwise the pushed page.
      */
     private fun visibleScreenAccessibleWhileLocked(): Boolean {
-        if (!currentPageAccessibleWhileLocked) return false
+        if (!currentPageAccessibleWhileLocked || registrationGateShowing) return false
         if (!mainPageOnTop) return true
         val tab = selectedTab
         return tab == null || isTabAccessibleWhileLocked(tab)
@@ -159,7 +169,7 @@ class LockGate(
 
     private fun currentScreenAccessible(): Boolean {
         val tab = selectedTab
-        return currentPageAccessibleWhileLocked && (tab == null || isTabAccessibleWhileLocked(tab))
+        return !registrationGateShowing && currentPageAccessibleWhileLocked && (tab == null || isTabAccessibleWhileLocked(tab))
     }
 
     private fun recompute() {
