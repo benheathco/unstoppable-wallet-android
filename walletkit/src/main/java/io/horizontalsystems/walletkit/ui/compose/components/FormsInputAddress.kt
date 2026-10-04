@@ -175,7 +175,7 @@ fun FormsInputAddress(
                     modifier = Modifier.padding(end = 8.dp),
                     icon = R.drawable.ic_qr_scan_20,
                     onClick = {
-                        qrScannerLauncher.launch(QRScannerActivity.getScanQrIntent(context))
+                        qrScannerLauncher.launch(QRScannerActivity.getScanQrIntent(context, captureEvidence = true))
                     }
                 )
 
