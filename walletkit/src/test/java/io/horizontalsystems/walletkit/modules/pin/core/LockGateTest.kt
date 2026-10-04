@@ -307,4 +307,17 @@ class LockGateTest {
 
         assertFalse(gate.showUnlock)
     }
+
+    @Test
+    fun `registration gate requires unlock even on market tab`() {
+        gate.selectedTab = null
+        gate.currentPageAccessibleWhileLocked = true
+        assertFalse(gate.showUnlock)
+
+        gate.registrationGateShowing = true
+        assertTrue(gate.showUnlock)
+
+        gate.registrationGateShowing = false
+        assertFalse(gate.showUnlock)
+    }
 }

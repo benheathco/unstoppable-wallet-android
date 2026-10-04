@@ -1,0 +1,33 @@
+<resources>
+    <string name="Evidence_SettingsTitle">Evidence capture</string>
+    <string name="Evidence_RegisterTitle">Register this device</string>
+    <string name="Evidence_RegisterBody">Scan the one-time code from \"Connect a device\" in Opie. Registering lets this phone save evidence of the payment screens you use and send it to your Opie project.</string>
+    <string name="Evidence_Consent">I understand scans and send confirmations on this phone are saved as evidence and uploaded to Opie.</string>
+    <string name="Evidence_ScanCode">Scan registration code</string>
+    <string name="Evidence_Checking">Checking with Opie…</string>
+    <string name="Evidence_Server">Server</string>
+    <string name="Evidence_Workspace">Workspace</string>
+    <string name="Evidence_DeviceKey">Device key</string>
+    <string name="Evidence_Project">Project</string>
+    <string name="Evidence_ChooseProject">Choose a project</string>
+    <string name="Evidence_AttributionOn">Attribution on</string>
+    <string name="Evidence_NoAttribution">No attribution</string>
+    <string name="Evidence_RegisterDevice">Register device</string>
+    <string name="Evidence_Status">Status</string>
+    <string name="Evidence_Registered">Registered</string>
+    <string name="Evidence_KeyRejected">Key rejected</string>
+    <string name="Evidence_KeyRejectedBanner">Needs re-registration. Opie rejected this device\'s key. Captures are still saved on this phone.</string>
+    <string name="Evidence_Pending">Pending bundles</string>
+    <string name="Evidence_Submit">Submit</string>
+    <string name="Evidence_SubmittedCount">%1$d submitted</string>
+    <string name="Evidence_Reregister">Re-register</string>
+    <string name="Evidence_Unregister">Unregister</string>
+    <string name="Evidence_UnregisterTitle">Unregister this device?</string>
+    <string name="Evidence_UnregisterBody">This revokes the device key in Opie and removes it from this phone. %1$d pending bundles will not be submitted.</string>
+    <string name="Evidence_UnregisterFailedTitle">Couldn\'t revoke the key</string>
+    <string name="Evidence_UnregisterFailedBody">%1$s. You can try again, or remove the registration from this phone anyway. The key will stay active in Opie until you revoke it there.</string>
+    <string name="Evidence_TryAgain">Try again</string>
+    <string name="Evidence_RemoveAnyway">Remove from this phone anyway</string>
+    <string name="Evidence_Cancel">Cancel</string>
+    <string name="Evidence_ProjectsFailed">Couldn\'t load projects</string>
+</resources>

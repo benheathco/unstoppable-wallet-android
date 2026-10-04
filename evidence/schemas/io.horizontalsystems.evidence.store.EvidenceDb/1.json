@@ -1,0 +1,180 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 1,
+    "identityHash": "9a0838b429ec513a796524fa0c02f4ed",
+    "entities": [
+      {
+        "tableName": "capture",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`clientRequestId` TEXT NOT NULL, `serverCaptureId` TEXT, `network` TEXT, `address` TEXT, `notes` TEXT, `projectUuid` TEXT NOT NULL, `captureMethod` TEXT NOT NULL, `expectedArtifacts` TEXT NOT NULL, `state` TEXT NOT NULL, `openedAt` INTEGER NOT NULL, `candidatesJson` TEXT NOT NULL, `capturedAtIso` TEXT NOT NULL, PRIMARY KEY(`clientRequestId`))",
+        "fields": [
+          {
+            "fieldPath": "clientRequestId",
+            "columnName": "clientRequestId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "serverCaptureId",
+            "columnName": "serverCaptureId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "network",
+            "columnName": "network",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "address",
+            "columnName": "address",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "notes",
+            "columnName": "notes",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "projectUuid",
+            "columnName": "projectUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "captureMethod",
+            "columnName": "captureMethod",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "expectedArtifacts",
+            "columnName": "expectedArtifacts",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "state",
+            "columnName": "state",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "openedAt",
+            "columnName": "openedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "candidatesJson",
+            "columnName": "candidatesJson",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "capturedAtIso",
+            "columnName": "capturedAtIso",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "clientRequestId"
+          ]
+        }
+      },
+      {
+        "tableName": "artifact",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `clientRequestId` TEXT NOT NULL, `artifactKind` TEXT NOT NULL, `filePath` TEXT NOT NULL, `clientSha256` TEXT NOT NULL, `serverFileHash` TEXT, `state` TEXT NOT NULL, `sourcePath` TEXT, `sealMetaJson` TEXT, FOREIGN KEY(`clientRequestId`) REFERENCES `capture`(`clientRequestId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "clientRequestId",
+            "columnName": "clientRequestId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "artifactKind",
+            "columnName": "artifactKind",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "filePath",
+            "columnName": "filePath",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "clientSha256",
+            "columnName": "clientSha256",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "serverFileHash",
+            "columnName": "serverFileHash",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "state",
+            "columnName": "state",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourcePath",
+            "columnName": "sourcePath",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "sealMetaJson",
+            "columnName": "sealMetaJson",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_artifact_clientRequestId",
+            "unique": false,
+            "columnNames": [
+              "clientRequestId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_artifact_clientRequestId` ON `${TABLE_NAME}` (`clientRequestId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "capture",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "clientRequestId"
+            ],
+            "referencedColumns": [
+              "clientRequestId"
+            ]
+          }
+        ]
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '9a0838b429ec513a796524fa0c02f4ed')"
+    ]
+  }
+}

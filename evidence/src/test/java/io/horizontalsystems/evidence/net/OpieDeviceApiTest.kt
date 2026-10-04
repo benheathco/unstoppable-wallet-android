@@ -1,0 +1,149 @@
+package io.horizontalsystems.evidence.net
+
+import kotlinx.coroutines.runBlocking
+import okhttp3.mockwebserver.MockResponse
+import okhttp3.mockwebserver.MockWebServer
+import okhttp3.mockwebserver.SocketPolicy
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class OpieDeviceApiTest {
+    private val s = MockWebServer()
+    private val api = OpieDeviceApi()
+
+    @After
+    fun tearDown() = s.shutdown()
+
+    private fun url() = s.url("/").toString().trimEnd('/')
+
+    @Test
+    fun captureProjects_follows_pagination_and_maps_attribution() = runBlocking {
+        s.enqueue(MockResponse().setBody("""{"count":2,"next":"${'$'}{NEXT}","results":[{"uuid":"p1","name":"Retail","crypto_attribution_enabled":true}]}"""
+            .replace("${'$'}{NEXT}", "/opie/api/v1/projects/?capture_eligible=1&page=2")))
+        s.enqueue(MockResponse().setBody("""{"count":2,"next":null,"results":[{"uuid":"p2","name":"Exchange","crypto_attribution_enabled":false}]}"""))
+        s.start()
+        val r = api.captureProjects(url(), "k")
+        assertEquals(
+            DeviceApiResult.Ok(listOf(OpieProject("p1", "Retail", true), OpieProject("p2", "Exchange", false))),
+            r,
+        )
+        val first = s.takeRequest()
+        assertEquals("/opie/api/v1/projects/?capture_eligible=1", first.path)
+        assertEquals("Api-Key k", first.getHeader("Authorization"))
+    }
+
+    @Test
+    fun captureProjects_401_is_unauthorized() = runBlocking {
+        s.enqueue(MockResponse().setResponseCode(401))
+        s.start()
+        assertEquals(DeviceApiResult.Unauthorized, api.captureProjects(url(), "k"))
+    }
+
+    @Test
+    fun captureProjects_offline_is_failed() = runBlocking {
+        s.enqueue(MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AT_START))
+        s.start()
+        assertTrue(api.captureProjects(url(), "k") is DeviceApiResult.Failed)
+    }
+
+    @Test
+    fun selfRevoke_204_and_401_both_mean_revoked() = runBlocking {
+        s.enqueue(MockResponse().setResponseCode(204))
+        s.enqueue(MockResponse().setResponseCode(401))
+        s.start()
+        assertEquals(DeviceApiResult.Ok(Unit), api.selfRevoke(url(), "k"))
+        assertEquals(DeviceApiResult.Ok(Unit), api.selfRevoke(url(), "k"))
+        val req = s.takeRequest()
+        assertEquals("POST", req.method)
+        assertEquals("/opie/api/v1/devices/self/revoke/", req.path)
+    }
+
+    @Test
+    fun selfRevoke_server_error_is_failed() = runBlocking {
+        s.enqueue(MockResponse().setResponseCode(503))
+        s.start()
+        assertTrue(api.selfRevoke(url(), "k") is DeviceApiResult.Failed)
+    }
+
+    @Test
+    fun captureProjects_rejects_next_to_different_host() = runBlocking {
+        s.enqueue(MockResponse().setBody("""{"count":1,"next":"http://evil.example/opie/api/v1/projects/?page=2","results":[{"uuid":"p1","name":"Retail","crypto_attribution_enabled":true}]}"""))
+        s.start()
+        val r = api.captureProjects(url(), "k")
+        assertTrue(r is DeviceApiResult.Failed)
+        assertEquals(1, s.requestCount)
+    }
+
+    @Test
+    fun captureProjects_repeated_next_is_failed() = runBlocking {
+        // Page 1 points to itself
+        val selfRef = """{"count":1,"next":"${s.url("/opie/api/v1/projects/?capture_eligible=1&page=2").toString().trimEnd('/')}","results":[{"uuid":"p1","name":"Retail","crypto_attribution_enabled":true}]}"""
+        s.enqueue(MockResponse().setBody(selfRef))
+        s.enqueue(MockResponse().setBody(selfRef))
+        s.start()
+        val r = api.captureProjects(url(), "k")
+        assertTrue(r is DeviceApiResult.Failed)
+        assertTrue(s.requestCount <= 2)
+    }
+
+    @Test
+    fun captureProjects_stops_at_50_pages() = runBlocking {
+        // Enqueue 51 pages, each with distinct next page
+        repeat(51) { i ->
+            s.enqueue(MockResponse().setBody("""{"count":1,"next":"/opie/api/v1/projects/?capture_eligible=1&page=${i + 2}","results":[{"uuid":"p$i","name":"Project $i","crypto_attribution_enabled":true}]}"""))
+        }
+        s.start()
+        val r = api.captureProjects(url(), "k")
+        assertTrue(r is DeviceApiResult.Failed)
+        assertEquals(50, s.requestCount)
+    }
+
+    @Test
+    fun captureProjects_missing_item_uuid_is_failed() = runBlocking {
+        s.enqueue(MockResponse().setBody("""{"next":null,"results":[{"name":"x"}]}"""))
+        s.start()
+        val r = api.captureProjects(url(), "k")
+        assertTrue(r is DeviceApiResult.Failed)
+    }
+
+    @Test
+    fun captureProjects_wrong_typed_results_is_failed() = runBlocking {
+        s.enqueue(MockResponse().setBody("""{"next":null,"results":"x"}"""))
+        s.start()
+        val r = api.captureProjects(url(), "k")
+        assertTrue(r is DeviceApiResult.Failed)
+    }
+
+    @Test
+    fun captureProjects_wrong_typed_next_is_failed() = runBlocking {
+        s.enqueue(MockResponse().setBody("""{"next":{},"results":[]}"""))
+        s.start()
+        val r = api.captureProjects(url(), "k")
+        assertTrue(r is DeviceApiResult.Failed)
+    }
+
+    @Test
+    fun captureProjects_uuid_as_null_is_failed() = runBlocking {
+        s.enqueue(MockResponse().setBody("""{"next":null,"results":[{"uuid":null,"name":"x","crypto_attribution_enabled":true}]}"""))
+        s.start()
+        val r = api.captureProjects(url(), "k")
+        assertTrue(r is DeviceApiResult.Failed)
+    }
+
+    @Test
+    fun captureProjects_uuid_as_number_is_failed() = runBlocking {
+        s.enqueue(MockResponse().setBody("""{"next":null,"results":[{"uuid":123,"name":"x","crypto_attribution_enabled":true}]}"""))
+        s.start()
+        val r = api.captureProjects(url(), "k")
+        assertTrue(r is DeviceApiResult.Failed)
+    }
+
+    @Test
+    fun selfRevoke_403_is_failed() = runBlocking {
+        s.enqueue(MockResponse().setResponseCode(403))
+        s.start()
+        assertTrue(api.selfRevoke(url(), "k") is DeviceApiResult.Failed)
+    }
+}

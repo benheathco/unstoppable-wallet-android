@@ -286,6 +286,16 @@ private fun SettingSections(
                 }
             }
 
+            io.horizontalsystems.walletkit.core.evidence.EvidenceHooksRegistry.hooks.settingsEntry?.let { entry ->
+                add {
+                    HsSettingCell(
+                        entry.title,
+                        entry.icon,
+                        onClick = { navigation.slideFromRight(entry.page) }
+                    )
+                }
+            }
+
             add {
                 HsSettingCell(
                     R.string.BackupManager_Title,

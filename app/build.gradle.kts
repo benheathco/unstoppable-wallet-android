@@ -67,6 +67,17 @@ android {
         }
     }
 
+    // Only when -PevidenceStoreFile is given (company evidence builds)
+    val evidenceStore = providers.gradleProperty("evidenceStoreFile").orNull
+    if (evidenceStore != null) {
+        signingConfigs.create("evidence") {
+            storeFile = file(evidenceStore)
+            storePassword = providers.gradleProperty("evidenceStorePassword").get()
+            keyAlias = providers.gradleProperty("evidenceKeyAlias").get()
+            keyPassword = providers.gradleProperty("evidenceKeyPassword").get()
+        }
+    }
+
     flavorDimensions += "distribution"
 
     val uswapApiKeyAndroid = "a32d6d05ef80c878c49eb7692aa6e2b36c4c0c7777b89e2c3c4d8e512a7cea61"
@@ -106,6 +117,17 @@ android {
             manifestPlaceholders["appLinksHost"] = "dev.unstoppable.money"
             buildConfigFieldString("USWAP_API_KEY", uswapApiKeyAndroid)
             buildConfigFieldString("ONE_INCH_PARTNER_FEE_ADDRESS", oneInchFeeAddressAndroid)
+        }
+
+        // Private Know Your Chain evidence build — company devices only, never published
+        create("evidence") {
+            dimension = "distribution"
+            applicationIdSuffix = ".evidence"
+            buildConfigFieldString("USWAP_API_KEY", uswapApiKeyAndroid)
+            buildConfigFieldString("ONE_INCH_PARTNER_FEE_ADDRESS", oneInchFeeAddressAndroid)
+            if (evidenceStore != null) {
+                signingConfig = signingConfigs.getByName("evidence")
+            }
         }
     }
 
@@ -300,6 +322,11 @@ afterEvaluate {
             "baseReleaseImplementation"(it)
             "ciImplementation"(it)
         }
+
+        "evidenceImplementation"(project(":evidence-ui"))
+        "evidenceImplementation"(project(":subscriptions-dev"))
+        findProject(":dapp-wallet-connect")?.let { "evidenceImplementation"(it) }
+        "evidenceImplementation"(libs.androidx.credentials.play.services.auth)
 
         "baseDebugImplementation"(libs.androidx.credentials.play.services.auth)
         "baseReleaseImplementation"(libs.androidx.credentials.play.services.auth)

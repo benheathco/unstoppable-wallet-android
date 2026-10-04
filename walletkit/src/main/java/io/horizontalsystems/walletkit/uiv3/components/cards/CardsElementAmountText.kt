@@ -1,7 +1,9 @@
 package io.horizontalsystems.walletkit.uiv3.components.cards
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -20,6 +22,7 @@ import io.horizontalsystems.walletkit.ui.compose.ComposeAppTheme
 import io.horizontalsystems.walletkit.uiv3.components.cell.HSString
 import io.horizontalsystems.walletkit.uiv3.components.cell.hs
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun CardsElementAmountText(
     title: HSString,
@@ -27,6 +30,7 @@ fun CardsElementAmountText(
     onClickTitle: () -> Unit,
     onClickSubtitle: () -> Unit,
     trailingContent: (@Composable () -> Unit)? = null,
+    onLongClickTitle: (() -> Unit)? = null,
 ) {
     Column(
         modifier = Modifier
@@ -37,10 +41,21 @@ fun CardsElementAmountText(
         Text(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = onClickTitle
+                .then(
+                    if (onLongClickTitle == null) {
+                        Modifier.clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = onClickTitle
+                        )
+                    } else {
+                        Modifier.combinedClickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = onClickTitle,
+                            onLongClick = onLongClickTitle
+                        )
+                    }
                 ),
             text = title.text,
             style = ComposeAppTheme.typography.title2М,

@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Bundle
@@ -111,7 +112,7 @@ class QRScannerActivity : BaseActivity() {
             ComposeAppTheme {
                 QRScannerScreen(
                     showPasteButton = intent.getBooleanExtra(SHOW_PASTE_BUTTON, false),
-                    onScan = { onScan(it) },
+                    onScan = { text, frame -> onScan(text, frame) },
                     onCloseClick = { finish() },
                     onCameraPermissionSettingsClick = { openCameraPermissionSettings() }
                 )
@@ -119,8 +120,15 @@ class QRScannerActivity : BaseActivity() {
         }
     }
 
-    private fun onScan(address: String?) {
-        if (App.pinComponent.isLocked) {
+    private fun onScan(address: String?, frame: Bitmap?) {
+        val locked = App.pinComponent.isLocked
+        dispatchScanEvidence(
+            captureEvidence = intent.getBooleanExtra(CAPTURE_EVIDENCE, false),
+            locked = locked,
+            frame = frame,
+            text = address.orEmpty(),
+        )
+        if (locked) {
             setResult(RESULT_CANCELED)
             finish()
             return
@@ -144,8 +152,9 @@ class QRScannerActivity : BaseActivity() {
 
     companion object {
         private const val SHOW_PASTE_BUTTON = "show_paste_button_key"
+        private const val CAPTURE_EVIDENCE = "capture_evidence_key"
 
-        fun getScanQrIntent(context: Context, showPasteButton: Boolean = false): Intent {
+        fun getScanQrIntent(context: Context, showPasteButton: Boolean = false, captureEvidence: Boolean = false): Intent {
             val options = ScanOptions()
             options.captureActivity = QRScannerActivity::class.java
             options.setOrientationLocked(true)
@@ -154,6 +163,7 @@ class QRScannerActivity : BaseActivity() {
             options.setDesiredBarcodeFormats(ScanOptions.QR_CODE)
             val intent = options.createScanIntent(context)
             intent.putExtra(SHOW_PASTE_BUTTON, showPasteButton)
+            intent.putExtra(CAPTURE_EVIDENCE, captureEvidence)
             intent.putExtra(Intents.Scan.SCAN_TYPE, Intents.Scan.MIXED_SCAN)
             return intent
         }
@@ -161,14 +171,14 @@ class QRScannerActivity : BaseActivity() {
 
 }
 
-private fun decodeQrFromUri(context: Context, uri: Uri): String? {
+private fun decodeQrFromUri(context: Context, uri: Uri): Pair<String, Bitmap>? {
     val bitmap = context.contentResolver.openInputStream(uri)
         ?.use { BitmapFactory.decodeStream(it) } ?: return null
     val intArray = IntArray(bitmap.width * bitmap.height)
     bitmap.getPixels(intArray, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
     val source = RGBLuminanceSource(bitmap.width, bitmap.height, intArray)
     return try {
-        QRCodeReader().decode(BinaryBitmap(HybridBinarizer(source))).text
+        QRCodeReader().decode(BinaryBitmap(HybridBinarizer(source))).text to bitmap
     } catch (e: Exception) {
         null
     }
@@ -178,7 +188,7 @@ private fun decodeQrFromUri(context: Context, uri: Uri): String? {
 @Composable
 private fun QRScannerScreen(
     showPasteButton: Boolean,
-    onScan: (String) -> Unit,
+    onScan: (String, Bitmap?) -> Unit,
     onCloseClick: () -> Unit,
     onCameraPermissionSettingsClick: () -> Unit
 ) {
@@ -191,7 +201,7 @@ private fun QRScannerScreen(
         val result = decodeQrFromUri(context, uri)
         if (result != null) {
             HudHelper.showSuccessMessage(view, R.string.ScanQr_QrDetected)
-            onScan(result)
+            onScan(result.first, result.second)
         } else {
             HudHelper.showErrorMessage(view, R.string.ScanQr_NoQrFound)
         }
@@ -270,7 +280,7 @@ private fun QRScannerScreen(
                         modifier = Modifier.weight(1f),
                         title = stringResource(R.string.Send_Button_Paste),
                         icon = painterResource(R.drawable.ic_copy_24),
-                        onClick = { onScan(TextHelper.getCopiedText() ?: "") }
+                        onClick = { onScan(TextHelper.getCopiedText() ?: "", null) }
                     )
                 }
             } else {
@@ -292,7 +302,7 @@ private fun QRScannerScreen(
 }
 
 @Composable
-private fun ScannerView(onScan: (String) -> Unit) {
+private fun ScannerView(onScan: (String, Bitmap?) -> Unit) {
     val context = LocalContext.current
     val barcodeView = remember {
         CompoundBarcodeView(context).apply {
@@ -300,7 +310,7 @@ private fun ScannerView(onScan: (String) -> Unit) {
             this.setStatusText("")
             this.decodeSingle { result ->
                 result.text?.let { barCodeOrQr ->
-                    onScan.invoke(barCodeOrQr)
+                    onScan.invoke(barCodeOrQr, result.bitmap)
                 }
             }
         }

@@ -122,6 +122,8 @@ powermock = "2.0.9"
 spek = "2.0.19"
 espresso = "3.7.0"
 testRunner = "1.7.0"
+robolectric = "4.17"
+androidxTestCore = "1.7.0"
 
 # AGP
 agp = "9.4.0"
@@ -140,6 +142,7 @@ androidx-navigation3-ui = { module = "androidx.navigation3:navigation3-ui", vers
 # Optional add-on libraries
 androidx-lifecycle-viewmodel-navigation3 = { module = "androidx.lifecycle:lifecycle-viewmodel-navigation3", version.ref = "lifecycleViewmodelNav3" }
 kotlinx-serialization-core = { module = "org.jetbrains.kotlinx:kotlinx-serialization-core", version.ref = "kotlinxSerializationCore" }
+kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerializationCore" }
 androidx-material3-adaptive-navigation3 = { group = "androidx.compose.material3.adaptive", name = "adaptive-navigation3", version.ref = "material3AdaptiveNav3" }
 
 # AndroidX Core
@@ -197,6 +200,7 @@ accompanist-permissions = { module = "com.google.accompanist:accompanist-permiss
 retrofit = { module = "com.squareup.retrofit2:retrofit", version.ref = "retrofit" }
 retrofit-converter-gson = { module = "com.squareup.retrofit2:converter-gson", version.ref = "retrofit" }
 retrofit-converter-scalars = { module = "com.squareup.retrofit2:converter-scalars", version.ref = "retrofit" }
+okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
 okhttp-logging = { module = "com.squareup.okhttp3:logging-interceptor", version.ref = "okhttp" }
 gson = { module = "com.google.code.gson:gson", version.ref = "gson" }
 
@@ -283,6 +287,11 @@ androidx-compose-runtime = { module = "androidx.compose.runtime:runtime", versio
 junit = { module = "junit:junit", version.ref = "junit" }
 classgraph = { module = "io.github.classgraph:classgraph", version.ref = "classgraph" }
 junit-ext = { module = "androidx.test.ext:junit", version.ref = "junitExt" }
+robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
+androidx-test-core = { module = "androidx.test:core", version.ref = "androidxTestCore" }
+androidx-work-testing = { module = "androidx.work:work-testing", version.ref = "work" }
+okhttp-mockwebserver = { module = "com.squareup.okhttp3:mockwebserver", version.ref = "okhttp" }
+kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
 arch-core-testing = { module = "androidx.arch.core:core-testing", version.ref = "archCoreTesting" }
 mockito = { module = "org.mockito:mockito-core", version.ref = "mockito" }
 mockito-kotlin = { module = "com.nhaarman:mockito-kotlin-kt1.1", version.ref = "mockitoKotlin" }
