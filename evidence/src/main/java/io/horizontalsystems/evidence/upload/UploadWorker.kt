@@ -31,7 +31,8 @@ class UploadDependencies(
     val dao: EvidenceDao,
     val client: OpieClient,
     val config: () -> EvidenceConfig?,
-    val onAuthRejected: () -> Unit = {},
+    /** Called with the API key used when the server answers 401; 403 is a scope refusal, not a bad key. */
+    val onAuthRejected: (apiKeyUsed: String) -> Unit = {},
 )
 
 /**
@@ -51,8 +52,6 @@ class UploadWorker(context: Context, params: WorkerParameters) : CoroutineWorker
         Result.retry()
     }
 
-    private fun Int?.isAuthRejection() = this == 401 || this == 403
-
     private suspend fun upload(): Result {
         val deps = dependencies ?: return Result.retry()
         val config = deps.config() ?: return Result.retry()
@@ -70,7 +69,7 @@ class UploadWorker(context: Context, params: WorkerParameters) : CoroutineWorker
                     capture = capture.copy(serverCaptureId = result.captureId, state = CaptureState.REGISTERED)
                 }
                 is CaptureResult.Err -> {
-                    if (result.code.isAuthRejection()) deps.onAuthRejected()
+                    if (result.code == 401) deps.onAuthRejected(config.apiKey)
                     if (result.retryable) return Result.retry()
                     dao.markState(clientRequestId, CaptureState.FAILED)
                     return Result.failure()
@@ -96,7 +95,7 @@ class UploadWorker(context: Context, params: WorkerParameters) : CoroutineWorker
                 UploadResult.Verified -> dao.markArtifact(artifact.id, ArtifactState.VERIFIED, artifact.clientSha256)
                 is UploadResult.HashMismatch -> dao.markArtifact(artifact.id, ArtifactState.VERIFY_FAILED, result.server)
                 is UploadResult.Err -> {
-                    if (result.code.isAuthRejection()) deps.onAuthRejected()
+                    if (result.code == 401) deps.onAuthRejected(config.apiKey)
                     if (result.retryable) return Result.retry()
                     dao.markArtifact(artifact.id, ArtifactState.VERIFY_FAILED, null)
                 }

@@ -201,14 +201,25 @@ class UploadWorkerTest {
     }
 
     @Test
-    fun unauthorized_registration_reports_auth_rejected() = runBlocking {
+    fun unauthorized_registration_reports_auth_rejected_with_the_key_used() = runBlocking {
         seedReadyBundle()
         server.enqueue(MockResponse().setResponseCode(401))
         server.start()
-        var rejected = false
-        UploadWorker.dependencies = UploadDependencies(dao, OpieClient(retryDelayMs = 10), { config(liveUrl()) }) { rejected = true }
+        val rejectedWith = mutableListOf<String>()
+        UploadWorker.dependencies = UploadDependencies(dao, OpieClient(retryDelayMs = 10), { config(liveUrl()) }) { rejectedWith += it }
         runWorker()
-        assertTrue(rejected)
+        assertEquals(listOf("k"), rejectedWith)
+    }
+
+    @Test
+    fun forbidden_registration_retries_without_reporting_auth_rejected() = runBlocking {
+        seedReadyBundle()
+        server.enqueue(MockResponse().setResponseCode(403))
+        server.start()
+        val rejectedWith = mutableListOf<String>()
+        UploadWorker.dependencies = UploadDependencies(dao, OpieClient(retryDelayMs = 10), { config(liveUrl()) }) { rejectedWith += it }
+        assertEquals(ListenableWorker.Result.retry(), runWorker())
+        assertTrue(rejectedWith.isEmpty())
     }
 
     @Test

@@ -24,6 +24,6 @@ object EvidenceGraph {
             KeystoreKeyWrapper(),
             version,
         )
-        recorder = DefaultEvidenceRecorder(app, { store.config() }, onAuthRejected = { store.markKeyRejected(true) })
+        recorder = DefaultEvidenceRecorder(app, { store.config() }, onAuthRejected = { used -> store.onAuthRejected(used) })
     }
 }

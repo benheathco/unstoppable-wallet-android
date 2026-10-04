@@ -63,6 +63,11 @@ class RegistrationStore(
         _registration.value = load()
     }
 
+    /** A 401 only counts if the rejected request used the key that is configured now (not a replaced one). */
+    fun onAuthRejected(apiKeyUsed: String) {
+        if (config()?.apiKey == apiKeyUsed) markKeyRejected(true)
+    }
+
     fun clear() {
         try {
             prefs.edit().clear().commit()

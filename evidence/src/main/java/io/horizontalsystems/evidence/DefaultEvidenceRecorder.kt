@@ -58,7 +58,7 @@ class DefaultEvidenceRecorder(
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO.limitedParallelism(1)),
     private val now: () -> String = { Instant.now().toString() },
     client: OpieClient = OpieClient(),
-    onAuthRejected: () -> Unit = {},
+    onAuthRejected: (apiKeyUsed: String) -> Unit = {},
 ) : EvidenceRecorder {
 
     // The bundle a later send attaches to: the most recent one this recorder opened
