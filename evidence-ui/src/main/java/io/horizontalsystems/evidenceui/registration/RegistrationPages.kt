@@ -17,6 +17,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.material.AlertDialog
+import androidx.compose.material.Text
+import androidx.compose.material.TextButton
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -65,11 +72,25 @@ data class RegistrationIntroPage(val popOnDone: Boolean = false) : HSPage() {
             }
         }
 
-        LaunchedEffect(state.step) {
-            if (state.step == RegStep.Done && popOnDone) navigation.removeLastOrNull()
+        val step = state.step
+        val scope = rememberCoroutineScope()
+        // Local state flips synchronously, so a second tap can't start a second registration
+        var registering by remember { mutableStateOf(false) }
+
+        // A revoke warning must be acknowledged before the page pops, or it would be lost
+        LaunchedEffect(step) {
+            if (step is RegStep.Done && step.revokeWarning == null && popOnDone) navigation.removeLastOrNull()
+        }
+        (step as? RegStep.Done)?.revokeWarning?.let { warning ->
+            AlertDialog(
+                onDismissRequest = {},
+                text = { Text(warning) },
+                confirmButton = {
+                    TextButton(onClick = { if (popOnDone) navigation.removeLastOrNull() }) { Text("OK") }
+                },
+            )
         }
 
-        val step = state.step
         HSScaffold(
             title = stringResource(R.string.Evidence_RegisterTitle),
             onBack = if (popOnDone) ({ navigation.removeLastOrNull() }) else null,
@@ -79,8 +100,18 @@ data class RegistrationIntroPage(val popOnDone: Boolean = false) : HSPage() {
                         ButtonPrimaryYellow(
                             modifier = Modifier.fillMaxWidth(),
                             title = stringResource(R.string.Evidence_RegisterDevice),
-                            enabled = step.selected != null,
-                            onClick = vm::register,
+                            enabled = step.selected != null && !registering,
+                            loadingIndicator = registering,
+                            onClick = {
+                                registering = true
+                                scope.launch {
+                                    try {
+                                        vm.register()
+                                    } finally {
+                                        registering = false
+                                    }
+                                }
+                            },
                         )
                     } else {
                         ButtonPrimaryYellow(

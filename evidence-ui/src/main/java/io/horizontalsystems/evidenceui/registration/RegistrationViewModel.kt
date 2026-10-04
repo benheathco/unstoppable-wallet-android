@@ -20,7 +20,7 @@ sealed class RegStep {
     object Intro : RegStep()
     object Checking : RegStep()
     data class Confirm(val payload: PairingPayload, val projects: List<OpieProject>, val selected: OpieProject?) : RegStep()
-    object Done : RegStep()
+    data class Done(val revokeWarning: String? = null) : RegStep()
 }
 
 data class RegUiState(val step: RegStep = RegStep.Intro, val consent: Boolean = false, val error: String? = null)
@@ -70,27 +70,34 @@ class RegistrationViewModel(
         s.copy(step = step.copy(selected = project), error = null)
     }
 
-    fun register() {
+    private val registering = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    /** Saves the registration, retires the previous key on re-register, then reports Done (with any revoke warning). */
+    suspend fun register() {
         val step = _uiState.value.step as? RegStep.Confirm ?: return
         val project = step.selected ?: run {
             _uiState.update { it.copy(error = "Choose a project") }
             return
         }
-        launch {
+        if (!registering.compareAndSet(false, true)) return
+        try {
             val previous = store.registration.value
             val saved = runCatching { withContext(io) { store.save(step.payload, project) } }
             if (saved.isFailure) {
                 _uiState.update { it.copy(error = "Couldn't store the device key securely on this phone") }
-                return@launch
+                return
             }
-            _uiState.update { it.copy(step = RegStep.Done, error = null) }
-            // Re-register: retire the old key; a failure is reported, never silent
+            // Revoke before Done: the page may pop on Done, which would drop the warning
+            var warning: String? = null
             if (previous != null && previous.apiKey != step.payload.key) {
                 val r = api.selfRevoke(previous.server, previous.apiKey)
-                if (r !is DeviceApiResult.Ok) {
-                    _uiState.update { it.copy(error = "Registered, but the old key couldn't be revoked. Revoke it in Opie.") }
+                if (r is DeviceApiResult.Failed) {
+                    warning = "Registered, but the old key couldn't be revoked. Revoke it in Opie."
                 }
             }
+            _uiState.update { it.copy(step = RegStep.Done(warning), error = null) }
+        } finally {
+            registering.set(false)
         }
     }
 

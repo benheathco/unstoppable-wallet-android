@@ -5,6 +5,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.horizontalsystems.evidence.net.OpieDeviceApi
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
@@ -36,8 +37,8 @@ class RegistrationViewModelTest {
     @After
     fun tearDown() = server.shutdown()
 
-    private fun code(project: String? = null) =
-        """{"v":1,"kind":"opie-device","server":"${server.url("/").toString().trimEnd('/')}","key":"ab.secret","team":"kyc"${project?.let { ",\"project\":\"$it\"" } ?: ""}}"""
+    private fun code(project: String? = null, key: String = "ab.secret") =
+        """{"v":1,"kind":"opie-device","server":"${server.url("/").toString().trimEnd('/')}","key":"$key","team":"kyc"${project?.let { ",\"project\":\"$it\"" } ?: ""}}"""
 
     private fun projectsBody() =
         """{"next":null,"results":[{"uuid":"p1","name":"Retail","crypto_attribution_enabled":true},{"uuid":"p2","name":"Exchange","crypto_attribution_enabled":false}]}"""
@@ -51,7 +52,7 @@ class RegistrationViewModelTest {
         val confirm = vm.uiState.value.step as RegStep.Confirm
         assertEquals("p2", confirm.selected?.uuid)
         vm.register()
-        assertEquals(RegStep.Done, vm.uiState.value.step)
+        assertEquals(RegStep.Done(null), vm.uiState.value.step)
         assertEquals("p2", store.config()!!.projectUuid)
     }
 
@@ -103,5 +104,46 @@ class RegistrationViewModelTest {
         assertNotNull(store.config())
         assertEquals(UnregisterResult.Revoked, vm.unregister(force = true))
         assertNull(store.config())
+    }
+
+    private suspend fun reRegister(revokeCode: Int): RegStep {
+        server.enqueue(MockResponse().setBody(projectsBody()))
+        server.enqueue(MockResponse().setBody(projectsBody()))
+        server.enqueue(MockResponse().setResponseCode(revokeCode))
+        server.start()
+        vm.onCodeScanned(code(project = "p1"))
+        vm.register()
+        vm.onCodeScanned(code(project = "p1", key = "cd.newkey"))
+        vm.register()
+        return vm.uiState.value.step
+    }
+
+    @Test
+    fun re_register_with_failed_old_key_revoke_reports_a_warning_in_done() = runBlocking {
+        val done = reRegister(500) as RegStep.Done
+        assertNotNull(done.revokeWarning)
+        assertEquals("cd.newkey", store.config()!!.apiKey)
+    }
+
+    @Test
+    fun re_register_with_successful_old_key_revoke_has_no_warning() = runBlocking {
+        assertEquals(RegStep.Done(null), reRegister(204))
+    }
+
+    @Test
+    fun register_twice_back_to_back_saves_once() = runBlocking {
+        var wraps = 0
+        val counting = object : KeyWrapper by XorWrapper() {
+            override fun wrap(plain: ByteArray): ByteArray { wraps++; return XorWrapper().wrap(plain) }
+        }
+        val countingVm = RegistrationViewModel(RegistrationStore(prefs, counting, "1.0"), OpieDeviceApi(), dispatcherForTests = kotlinx.coroutines.Dispatchers.Unconfined)
+        server.enqueue(MockResponse().setBody(projectsBody()))
+        server.start()
+        countingVm.onCodeScanned(code(project = "p1"))
+        kotlinx.coroutines.coroutineScope {
+            launch { countingVm.register() }
+            launch { countingVm.register() }
+        }
+        assertEquals(1, wraps)
     }
 }

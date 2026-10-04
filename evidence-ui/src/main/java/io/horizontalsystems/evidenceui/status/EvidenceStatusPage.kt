@@ -64,6 +64,8 @@ data object EvidenceStatusPage : HSPage() {
         var submitting by remember { mutableStateOf(false) }
         var confirmUnregister by remember { mutableStateOf(false) }
         var unregisterFailure by remember { mutableStateOf<String?>(null) }
+        var loadingProjects by remember { mutableStateOf(false) }
+        var savingProject by remember { mutableStateOf(false) }
         var busy by remember { mutableStateOf(false) }
         var projects by remember { mutableStateOf<List<OpieProject>?>(null) }
         var projectsError by remember { mutableStateOf<String?>(null) }
@@ -119,11 +121,18 @@ data object EvidenceStatusPage : HSPage() {
                     error = reg.keyRejected,
                 )
                 InfoRow(stringResource(R.string.Evidence_Project), reg.projectName, onClick = {
-                    scope.launch {
-                        when (val r = EvidenceGraph.api.captureProjects(reg.server, reg.apiKey)) {
-                            is DeviceApiResult.Ok -> projects = r.value
-                            DeviceApiResult.Unauthorized -> projectsError = view.context.getString(R.string.Evidence_KeyRejected)
-                            is DeviceApiResult.Failed -> projectsError = r.message
+                    if (!loadingProjects) {
+                        loadingProjects = true
+                        scope.launch {
+                            try {
+                                when (val r = EvidenceGraph.api.captureProjects(reg.server, reg.apiKey)) {
+                                    is DeviceApiResult.Ok -> projects = r.value
+                                    DeviceApiResult.Unauthorized -> projectsError = view.context.getString(R.string.Evidence_KeyRejected)
+                                    is DeviceApiResult.Failed -> projectsError = r.message
+                                }
+                            } finally {
+                                loadingProjects = false
+                            }
                         }
                     }
                 })
@@ -141,8 +150,19 @@ data object EvidenceStatusPage : HSPage() {
                     Column {
                         list.forEach { p ->
                             TextButton(onClick = {
-                                scope.launch(Dispatchers.IO) { store.setProject(p) }
                                 projects = null
+                                if (!savingProject) {
+                                    savingProject = true
+                                    scope.launch {
+                                        try {
+                                            withContext(Dispatchers.IO) { store.setProject(p) }
+                                        } catch (e: Exception) {
+                                            HudHelper.showErrorMessage(view, e.message ?: view.context.getString(R.string.Evidence_ProjectsFailed))
+                                        } finally {
+                                            savingProject = false
+                                        }
+                                    }
+                                }
                             }) { Text(p.name) }
                         }
                     }
