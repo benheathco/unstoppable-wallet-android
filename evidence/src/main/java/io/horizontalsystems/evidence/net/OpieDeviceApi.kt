@@ -3,6 +3,7 @@ package io.horizontalsystems.evidence.net
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
@@ -42,33 +43,61 @@ class OpieDeviceApi(private val http: OkHttpClient = OkHttpClient()) {
             val (code, body) = get(next, apiKey) ?: return DeviceApiResult.Failed("Opie is unreachable")
             if (code == 401 || code == 403) return DeviceApiResult.Unauthorized
             if (code !in 200..299) return DeviceApiResult.Failed("Opie returned $code")
-            val page = runCatching { Json.parseToJsonElement(body).jsonObject }.getOrNull()
-                ?: return DeviceApiResult.Failed("Unexpected response from Opie")
 
-            // Parse results with exception handling
-            val results = page["results"]?.jsonArray
-            if (results != null) {
+            try {
+                val page = runCatching { Json.parseToJsonElement(body).jsonObject }.getOrNull()
+                    ?: return DeviceApiResult.Failed("Unexpected response from Opie")
+
+                // Parse results array — must be a JSON array
+                val resultsElement = page["results"]
+                    ?: return DeviceApiResult.Failed("Unexpected response from Opie")
+                val results = runCatching { resultsElement.jsonArray }.getOrNull()
+                    ?: return DeviceApiResult.Failed("Unexpected response from Opie")
+
+                // Parse each item
                 for (item in results) {
-                    try {
-                        val o = item.jsonObject
-                        projects += OpieProject(
-                            uuid = o.getValue("uuid").jsonPrimitive.content,
-                            name = o.getValue("name").jsonPrimitive.content,
-                            attributionEnabled = o["crypto_attribution_enabled"]?.jsonPrimitive?.boolean ?: false,
-                        )
-                    } catch (e: Exception) {
-                        return DeviceApiResult.Failed("Unexpected response from Opie")
+                    val o = item.jsonObject
+
+                    // uuid must be a JSON string (not null, not a number, etc.)
+                    val uuidElement = o["uuid"]
+                        ?: return DeviceApiResult.Failed("Unexpected response from Opie")
+                    val uuidPrimitive = runCatching { uuidElement.jsonPrimitive }.getOrNull()
+                        ?: return DeviceApiResult.Failed("Unexpected response from Opie")
+                    if (!uuidPrimitive.isString) return DeviceApiResult.Failed("Unexpected response from Opie")
+                    val uuid = uuidPrimitive.content
+
+                    // name must be a JSON string (not null, not a number, etc.)
+                    val nameElement = o["name"]
+                        ?: return DeviceApiResult.Failed("Unexpected response from Opie")
+                    val namePrimitive = runCatching { nameElement.jsonPrimitive }.getOrNull()
+                        ?: return DeviceApiResult.Failed("Unexpected response from Opie")
+                    if (!namePrimitive.isString) return DeviceApiResult.Failed("Unexpected response from Opie")
+                    val name = namePrimitive.content
+
+                    val attributionEnabled = o["crypto_attribution_enabled"]?.jsonPrimitive?.boolean ?: false
+
+                    projects += OpieProject(uuid, name, attributionEnabled)
+                }
+
+                // Parse next URL — must be null or a JSON string
+                val nextElement = page["next"]
+                next = when {
+                    nextElement == null || nextElement is JsonNull -> null
+                    else -> {
+                        val nextPrimitive = runCatching { nextElement.jsonPrimitive }.getOrNull()
+                            ?: return DeviceApiResult.Failed("Unexpected response from Opie")
+                        if (!nextPrimitive.isString) return DeviceApiResult.Failed("Unexpected response from Opie")
+                        val nextUrl = nextPrimitive.content
+                        val resolved = runCatching { serverHttpUrl.resolve(nextUrl) }.getOrNull()
+                        if (resolved != null && isSameHost(serverHttpUrl, resolved)) {
+                            resolved.toString()
+                        } else {
+                            return DeviceApiResult.Failed("Unexpected response from Opie")
+                        }
                     }
                 }
-            }
-
-            next = page["next"]?.jsonPrimitive?.contentOrNull?.let { nextUrl ->
-                val resolved = runCatching { serverHttpUrl.resolve(nextUrl) }.getOrNull()
-                if (resolved != null && isSameHost(serverHttpUrl, resolved)) {
-                    resolved.toString()
-                } else {
-                    return DeviceApiResult.Failed("Unexpected response from Opie")
-                }
+            } catch (e: Exception) {
+                return DeviceApiResult.Failed("Unexpected response from Opie")
             }
         }
         return DeviceApiResult.Ok(projects)

@@ -77,7 +77,7 @@ class OpieDeviceApiTest {
     }
 
     @Test
-    fun captureProjects_stops_after_50_pages() = runBlocking {
+    fun captureProjects_repeated_next_is_failed() = runBlocking {
         // Page 1 points to itself
         val selfRef = """{"count":1,"next":"${s.url("/opie/api/v1/projects/?capture_eligible=1&page=2").toString().trimEnd('/')}","results":[{"uuid":"p1","name":"Retail","crypto_attribution_enabled":true}]}"""
         s.enqueue(MockResponse().setBody(selfRef))
@@ -89,8 +89,52 @@ class OpieDeviceApiTest {
     }
 
     @Test
+    fun captureProjects_stops_at_50_pages() = runBlocking {
+        // Enqueue 51 pages, each with distinct next page
+        repeat(51) { i ->
+            s.enqueue(MockResponse().setBody("""{"count":1,"next":"/opie/api/v1/projects/?capture_eligible=1&page=${i + 2}","results":[{"uuid":"p$i","name":"Project $i","crypto_attribution_enabled":true}]}"""))
+        }
+        s.start()
+        val r = api.captureProjects(url(), "k")
+        assertTrue(r is DeviceApiResult.Failed)
+        assertEquals(50, s.requestCount)
+    }
+
+    @Test
     fun captureProjects_missing_item_uuid_is_failed() = runBlocking {
         s.enqueue(MockResponse().setBody("""{"next":null,"results":[{"name":"x"}]}"""))
+        s.start()
+        val r = api.captureProjects(url(), "k")
+        assertTrue(r is DeviceApiResult.Failed)
+    }
+
+    @Test
+    fun captureProjects_wrong_typed_results_is_failed() = runBlocking {
+        s.enqueue(MockResponse().setBody("""{"next":null,"results":"x"}"""))
+        s.start()
+        val r = api.captureProjects(url(), "k")
+        assertTrue(r is DeviceApiResult.Failed)
+    }
+
+    @Test
+    fun captureProjects_wrong_typed_next_is_failed() = runBlocking {
+        s.enqueue(MockResponse().setBody("""{"next":{},"results":[]}"""))
+        s.start()
+        val r = api.captureProjects(url(), "k")
+        assertTrue(r is DeviceApiResult.Failed)
+    }
+
+    @Test
+    fun captureProjects_uuid_as_null_is_failed() = runBlocking {
+        s.enqueue(MockResponse().setBody("""{"next":null,"results":[{"uuid":null,"name":"x","crypto_attribution_enabled":true}]}"""))
+        s.start()
+        val r = api.captureProjects(url(), "k")
+        assertTrue(r is DeviceApiResult.Failed)
+    }
+
+    @Test
+    fun captureProjects_uuid_as_number_is_failed() = runBlocking {
+        s.enqueue(MockResponse().setBody("""{"next":null,"results":[{"uuid":123,"name":"x","crypto_attribution_enabled":true}]}"""))
         s.start()
         val r = api.captureProjects(url(), "k")
         assertTrue(r is DeviceApiResult.Failed)
