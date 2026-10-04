@@ -33,6 +33,7 @@ include(":walletkit-chain-evm")
 include(":components:icons")
 include(":components:chartview")
 include(":subscriptions-core")
+include(":evidence")
 if (file("subscriptions-google-play").exists()) {
     include(":subscriptions-google-play")
 }
