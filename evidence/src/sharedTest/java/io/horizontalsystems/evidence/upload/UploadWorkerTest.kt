@@ -67,7 +67,7 @@ class UploadWorkerTest {
         dao.upsertCapture(
             CaptureEntity(
                 "req-1", serverCaptureId, "Ethereum", "0xabc", "scan", "proj-1", "mobile_app",
-                "[\"scan_frame\"]", state, 1L,
+                "[\"screenshot\"]", state, 1L,
                 candidatesJson = """[{"identifier":"0xabc","network":"Ethereum","subject_type":"DEPOSIT_ADDRESS"}]""",
                 capturedAtIso = "2026-10-04T00:00:00Z",
             )
@@ -77,7 +77,7 @@ class UploadWorkerTest {
         val sealedFile = File(dir, "sealed.png").apply { writeBytes(sealed) }
         return dao.insertArtifact(
             ArtifactEntity(
-                0, "req-1", "scan_frame", sealedFile.path, sha256Hex(sealed), null, ArtifactState.PENDING,
+                0, "req-1", "screenshot", sealedFile.path, sha256Hex(sealed), null, ArtifactState.PENDING,
                 sourcePath = sourceFile.path, sealMetaJson = Json.encodeToString(SealMeta.serializer(), meta),
             )
         )
@@ -124,7 +124,7 @@ class UploadWorkerTest {
         UploadWorker.dependencies = deps(liveUrl())
         runWorker()
         val body = server.takeRequest().body.readUtf8()
-        listOf("\"client_request_id\":\"req-1\"", "\"expected_artifacts\":[\"scan_frame\"]", "\"project\":\"proj-1\"", "DEPOSIT_ADDRESS")
+        listOf("\"client_request_id\":\"req-1\"", "\"expected_artifacts\":[\"screenshot\"]", "\"project\":\"proj-1\"", "DEPOSIT_ADDRESS")
             .forEach { assertTrue(it, body.contains(it)) }
     }
 
@@ -294,7 +294,7 @@ class UploadWorkerTest {
 
         val capture = dao.capture("req-1")!!
         assertEquals(CaptureState.READY, capture.state)
-        assertEquals("""["scan_frame","screenshot"]""", capture.expectedArtifacts)
+        assertEquals("""["screenshot"]""", capture.expectedArtifacts)
         val work = WorkManager.getInstance(context).getWorkInfosForUniqueWork(UploadWorker.uniqueName("req-1")).get()
         assertEquals(1, work.size)
         assertEquals(WorkInfo.State.ENQUEUED, work.single().state)

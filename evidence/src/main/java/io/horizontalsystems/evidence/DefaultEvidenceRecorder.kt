@@ -109,7 +109,7 @@ class DefaultEvidenceRecorder(
         openBundleId = clientRequestId
 
         val meta = SealMeta(clientRequestId, network, decoded.address, null, capturedAt, cfg.deviceId, cfg.appVersion, null)
-        enqueue { writeArtifact(clientRequestId, KIND_SCAN_FRAME, image, meta) }
+        enqueue { writeArtifact(clientRequestId, PREFIX_SCAN, image, meta) }
     }
 
     override fun recordSend(send: SendRecord, confirmationView: View) = guard {
@@ -151,7 +151,7 @@ class DefaultEvidenceRecorder(
             clientRequestId, network, send.address, send.amount, send.capturedAtIso, cfg.deviceId, cfg.appVersion, null,
         )
         enqueue {
-            image?.let { writeArtifact(clientRequestId, KIND_SCREENSHOT, it, meta) }
+            image?.let { writeArtifact(clientRequestId, PREFIX_SEND, it, meta) }
             if (finalize) finalizeBundle(context, dao, clientRequestId)
         }
     }
@@ -182,17 +182,17 @@ class DefaultEvidenceRecorder(
 
     private fun writeNow(capture: CaptureEntity) = runBlocking(Dispatchers.IO) { dao.upsertCapture(capture) }
 
-    private suspend fun writeArtifact(clientRequestId: String, kind: String, image: Bitmap, meta: SealMeta) {
+    private suspend fun writeArtifact(clientRequestId: String, filePrefix: String, image: Bitmap, meta: SealMeta) {
         val dir = File(context.filesDir, "evidence/$clientRequestId").apply { mkdirs() }
         val index = dao.artifacts(clientRequestId).size + 1
-        val source = File(dir, "$kind-$index.source.png")
+        val source = File(dir, "$filePrefix-$index.source.png")
         source.outputStream().use { image.compress(Bitmap.CompressFormat.PNG, 100, it) }
         val sealedBytes = sealPng(image, meta)
         image.recycle()
-        val sealed = File(dir, "$kind-$index.png").apply { writeBytes(sealedBytes) }
+        val sealed = File(dir, "$filePrefix-$index.png").apply { writeBytes(sealedBytes) }
         dao.insertArtifact(
             ArtifactEntity(
-                0, clientRequestId, kind, sealed.path, sha256Hex(sealedBytes), null, ArtifactState.PENDING,
+                0, clientRequestId, KIND_SCREENSHOT, sealed.path, sha256Hex(sealedBytes), null, ArtifactState.PENDING,
                 sourcePath = source.path, sealMetaJson = json.encodeToString(SealMeta.serializer(), meta),
             )
         )
@@ -220,8 +220,10 @@ class DefaultEvidenceRecorder(
 
     companion object {
         private const val TAG = "Evidence"
-        const val KIND_SCAN_FRAME = "scan_frame"
+        // Opie only recognises "screenshot"; scan vs send is told apart by the file-name prefix
         const val KIND_SCREENSHOT = "screenshot"
+        const val PREFIX_SCAN = "scan"
+        const val PREFIX_SEND = "send"
 
         private val json = Json { ignoreUnknownKeys = true }
         private val candidatesSerializer = ListSerializer(Candidate.serializer())

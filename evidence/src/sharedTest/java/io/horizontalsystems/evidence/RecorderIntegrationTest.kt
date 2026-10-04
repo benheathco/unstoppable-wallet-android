@@ -79,7 +79,7 @@ class RecorderIntegrationTest {
     private fun only() = runBlocking { dao.openBundles().first().single() }
 
     @Test
-    fun recordScan_writes_open_bundle_with_sealed_scan_frame_on_disk() = runBlocking {
+    fun recordScan_writes_open_bundle_with_sealed_screenshot_artifact_on_disk() = runBlocking {
         recorder().recordScan(frame(), DecodedScan("ethereum:0xabc", "0xabc", "ethereum", notes = "Shop"))
         awaitIdle()
 
@@ -92,7 +92,9 @@ class RecorderIntegrationTest {
         assertTrue(capture.notes!!.contains("Shop"))
 
         val artifact = dao.artifacts(capture.clientRequestId).single()
-        assertEquals("scan_frame", artifact.artifactKind)
+        assertEquals("screenshot", artifact.artifactKind)
+        assertTrue(File(artifact.filePath).name.startsWith("scan-"))
+        assertTrue(File(artifact.sourcePath!!).name.startsWith("scan-"))
         assertEquals(ArtifactState.PENDING, artifact.state)
         val sealed = File(artifact.filePath)
         assertTrue(sealed.exists())
@@ -135,12 +137,12 @@ class RecorderIntegrationTest {
         awaitIdle()
 
         val capture = dao.capturesInState(CaptureState.READY).single()
-        assertEquals("""["scan_frame","screenshot"]""", capture.expectedArtifacts)
+        assertEquals("""["screenshot"]""", capture.expectedArtifacts)
         assertTrue(capture.notes!!.contains("100.0"))
         assertTrue(capture.notes!!.contains("0xtx"))
         // The send's payee is the scanned address: one candidate, not two
         assertEquals(1, Regex("\"identifier\"").findAll(capture.candidatesJson).count())
-        assertEquals(listOf("scan_frame", "screenshot"), dao.artifacts(capture.clientRequestId).map { it.artifactKind })
+        assertEquals(listOf("screenshot", "screenshot"), dao.artifacts(capture.clientRequestId).map { it.artifactKind })
         val work = WorkManager.getInstance(context).getWorkInfosForUniqueWork(UploadWorker.uniqueName(capture.clientRequestId)).get()
         assertEquals(1, work.size)
     }
@@ -165,7 +167,7 @@ class RecorderIntegrationTest {
         awaitIdle()
 
         val capture = dao.capturesInState(CaptureState.READY).single()
-        assertEquals("""["scan_frame","screenshot"]""", capture.expectedArtifacts)
+        assertEquals("""["screenshot"]""", capture.expectedArtifacts)
     }
 
     @Test
@@ -187,7 +189,7 @@ class RecorderIntegrationTest {
         awaitIdle()
 
         val capture = dao.capturesInState(CaptureState.READY).single()
-        assertEquals("""["scan_frame"]""", capture.expectedArtifacts)
+        assertEquals("""["screenshot"]""", capture.expectedArtifacts)
     }
 
     @Test
@@ -198,7 +200,11 @@ class RecorderIntegrationTest {
         awaitIdle()
         val capture = only()
         assertEquals(CaptureState.OPEN, capture.state)
-        assertEquals(2, dao.artifacts(capture.clientRequestId).size)
+        val artifacts = dao.artifacts(capture.clientRequestId)
+        assertEquals(2, artifacts.size)
+        assertTrue(File(artifacts[0].filePath).name.startsWith("scan-"))
+        assertTrue(File(artifacts[1].filePath).name.startsWith("send-"))
+        assertTrue(File(artifacts[1].sourcePath!!).name.startsWith("send-"))
     }
 
     @Test
@@ -234,7 +240,7 @@ class RecorderIntegrationTest {
 
         val capture = dao.capturesInState(CaptureState.READY).single()
         assertTrue(capture.notes!!.contains("0xtx"))
-        assertEquals("""["scan_frame"]""", capture.expectedArtifacts)
+        assertEquals("""["screenshot"]""", capture.expectedArtifacts)
     }
 
     @Test
@@ -245,13 +251,13 @@ class RecorderIntegrationTest {
         awaitIdle()
 
         val capture = dao.capturesInState(CaptureState.READY).single()
-        assertEquals(listOf("scan_frame", "screenshot"), dao.artifacts(capture.clientRequestId).map { it.artifactKind })
+        assertEquals(listOf("screenshot", "screenshot"), dao.artifacts(capture.clientRequestId).map { it.artifactKind })
     }
 
     @Test
     fun startup_requeues_bundles_finalized_before_process_death() = runBlocking {
-        dao.upsertCapture(CaptureEntity("req-r", null, null, null, null, "proj-1", "mobile_app", "[\"scan_frame\"]", CaptureState.READY, 1L))
-        dao.upsertCapture(CaptureEntity("req-g", "cap-1", null, null, null, "proj-1", "mobile_app", "[\"scan_frame\"]", CaptureState.REGISTERED, 1L))
+        dao.upsertCapture(CaptureEntity("req-r", null, null, null, null, "proj-1", "mobile_app", "[\"screenshot\"]", CaptureState.READY, 1L))
+        dao.upsertCapture(CaptureEntity("req-g", "cap-1", null, null, null, "proj-1", "mobile_app", "[\"screenshot\"]", CaptureState.REGISTERED, 1L))
         recorder()
         val workManager = WorkManager.getInstance(context)
         withTimeout(10_000) {
