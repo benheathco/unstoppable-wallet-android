@@ -62,4 +62,19 @@ class PairingPayloadTest {
         val p = PairingPayload.parse(ok.replace("http://localhost:8000", "HTTPS://opie.example.com")).getOrThrow()
         assertEquals("HTTPS://opie.example.com", p.server)
     }
+
+    @Test
+    fun rejects_string_version() {
+        assertTrue(ok.replace("\"v\":1", "\"v\":\"1\""), PairingPayload.parse(ok.replace("\"v\":1", "\"v\":\"1\"")).isFailure)
+    }
+
+    @Test
+    fun rejects_empty_key() {
+        assertTrue(ok.replace(""","key":"ab.cd"""", ""","key":"""""""), PairingPayload.parse(ok.replace(""","key":"ab.cd"""", ""","key":""""""")).isFailure)
+    }
+
+    @Test
+    fun rejects_whitespace_only_key() {
+        assertTrue(ok.replace(""","key":"ab.cd"""", ""","key":"  """"), PairingPayload.parse(ok.replace(""","key":"ab.cd"""", ""","key":"  """")).isFailure)
+    }
 }

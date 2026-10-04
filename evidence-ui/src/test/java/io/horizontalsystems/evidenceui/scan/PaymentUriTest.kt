@@ -70,4 +70,14 @@ class PaymentUriTest {
     fun empty_bitcoin_uri() {
         assertEquals(null, parsePaymentQr("bitcoin:").address)
     }
+
+    @Test
+    fun bip21_ignores_address_query_param() {
+        assertEquals("bc1qreal1234567890abcdefgh", parsePaymentQr("bitcoin:bc1qreal1234567890abcdefgh?label=x&address=attacker").address)
+    }
+
+    @Test
+    fun eip681_without_transfer_ignores_address_param() {
+        assertEquals("0xAbC", parsePaymentQr("ethereum:0xAbC@1?address=0xEvil").address)
+    }
 }

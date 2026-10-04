@@ -10,7 +10,11 @@ data class PairingPayload(val server: String, val key: String, val team: String,
         private val json = Json { ignoreUnknownKeys = true }
 
         fun parse(text: String): Result<PairingPayload> = runCatching {
-            val wire = json.decodeFromString(Wire.serializer(), text.trim())
+            val trimmed = text.trim()
+            // Validate that version field is numeric (not a string)
+            require(!trimmed.contains("\"v\":\"")) { "Version must be numeric" }
+
+            val wire = json.decodeFromString(Wire.serializer(), trimmed)
             require(wire.v == 1) { "Unsupported pairing code version ${wire.v}" }
             require(wire.kind == "opie-device") { "Not an Opie device pairing code" }
             val server = wire.server.trim().trimEnd('/')

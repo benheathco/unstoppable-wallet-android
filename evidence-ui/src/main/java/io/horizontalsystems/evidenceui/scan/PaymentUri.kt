@@ -26,20 +26,6 @@ fun parsePaymentQr(text: String): DecodedScan {
     if (network != null) {
         val afterScheme = raw.substringAfter(':').removePrefix("//")
 
-        // Try to extract address from query parameter first (for token transfers)
-        val queryParams = afterScheme.substringAfter('?', "")
-        val addressFromQuery = if (queryParams.isNotEmpty()) {
-            queryParams.split('&').find { it.startsWith("address=") }
-                ?.substringAfter("address=")
-                ?.substringBefore('&')
-        } else {
-            null
-        }
-
-        if (addressFromQuery != null && addressFromQuery.isNotEmpty()) {
-            return DecodedScan(raw, addressFromQuery, network)
-        }
-
         // For ton scheme, extract the last non-empty path segment
         if (scheme == "ton") {
             val pathPart = afterScheme.substringBefore('?')
@@ -57,6 +43,26 @@ fun parsePaymentQr(text: String): DecodedScan {
         // Strip pay- prefix if present
         if (address.startsWith("pay-")) {
             address = address.removePrefix("pay-")
+        }
+
+        // Check if this is an ethereum EIP-681 token transfer
+        // Only apply address= query parameter override for ethereum://.../transfer
+        val isEthereumTransfer = scheme == "ethereum" && afterScheme.contains("/transfer")
+
+        if (isEthereumTransfer) {
+            // Try to extract recipient address from query parameter for token transfers
+            val queryParams = afterScheme.substringAfter('?', "")
+            val addressFromQuery = if (queryParams.isNotEmpty()) {
+                queryParams.split('&').find { it.startsWith("address=") }
+                    ?.substringAfter("address=")
+                    ?.substringBefore('&')
+            } else {
+                null
+            }
+
+            if (addressFromQuery != null && addressFromQuery.isNotEmpty()) {
+                return DecodedScan(raw, addressFromQuery, network)
+            }
         }
 
         return DecodedScan(raw, address.ifEmpty { null }, network)
