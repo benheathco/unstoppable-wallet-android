@@ -47,7 +47,15 @@ fun parsePaymentQr(text: String): DecodedScan {
 
         // Check if this is an ethereum EIP-681 token transfer
         // Only apply address= query parameter override for ethereum://.../transfer
-        val isEthereumTransfer = scheme == "ethereum" && afterScheme.contains("/transfer")
+        // Must be an exact segment match (not substring like /transferFrom or in query params)
+        val isEthereumTransfer = if (scheme == "ethereum") {
+            val pathPart = afterScheme.substringBefore('?')
+            val segments = pathPart.split('/').filter { it.isNotEmpty() }
+            // Check if "transfer" is an exact segment after the first segment (the address)
+            segments.drop(1).contains("transfer")
+        } else {
+            false
+        }
 
         if (isEthereumTransfer) {
             // Try to extract recipient address from query parameter for token transfers

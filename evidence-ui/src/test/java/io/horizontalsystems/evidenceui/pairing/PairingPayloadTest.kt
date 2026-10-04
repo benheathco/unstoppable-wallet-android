@@ -70,11 +70,21 @@ class PairingPayloadTest {
 
     @Test
     fun rejects_empty_key() {
-        assertTrue(ok.replace(""","key":"ab.cd"""", ""","key":"""""""), PairingPayload.parse(ok.replace(""","key":"ab.cd"""", ""","key":""""""")).isFailure)
+        val payload = ok.replace("\"key\":\"ab.cd\"", "\"key\":\"\"")
+        assertTrue(payload.contains("\"key\":\"\""))
+        val failure = PairingPayload.parse(payload).exceptionOrNull()
+        assertEquals("Incomplete pairing code", failure?.message)
     }
 
     @Test
     fun rejects_whitespace_only_key() {
         assertTrue(ok.replace(""","key":"ab.cd"""", ""","key":"  """"), PairingPayload.parse(ok.replace(""","key":"ab.cd"""", ""","key":"  """")).isFailure)
+    }
+
+    @Test
+    fun rejects_version_with_whitespace() {
+        val payload = ok.replace("\"v\":1", "\"v\" : \"1\"")
+        assertTrue(payload.contains("\"v\" : \"1\""))
+        assertEquals("Unsupported pairing code version", PairingPayload.parse(payload).exceptionOrNull()?.message)
     }
 }

@@ -2,6 +2,9 @@ package io.horizontalsystems.evidenceui.pairing
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonObject
 import java.net.URI
 
 /** Opie "Connect a device" QR, v1. See the device-pairing spec §3.3. */
@@ -11,11 +14,15 @@ data class PairingPayload(val server: String, val key: String, val team: String,
 
         fun parse(text: String): Result<PairingPayload> = runCatching {
             val trimmed = text.trim()
-            // Validate that version field is numeric (not a string)
-            require(!trimmed.contains("\"v\":\"")) { "Version must be numeric" }
+            // Typed check: "v" must be a JSON number (not a string) equal to 1
+            val jsonElement = Json.parseToJsonElement(trimmed)
+            val obj = jsonElement.jsonObject
 
-            val wire = json.decodeFromString(Wire.serializer(), trimmed)
-            require(wire.v == 1) { "Unsupported pairing code version ${wire.v}" }
+            val vElement = obj["v"]
+            require(vElement is JsonPrimitive && !vElement.isString) { "Unsupported pairing code version" }
+            require(vElement.intOrNull == 1) { "Unsupported pairing code version" }
+
+            val wire = json.decodeFromJsonElement(Wire.serializer(), jsonElement)
             require(wire.kind == "opie-device") { "Not an Opie device pairing code" }
             val server = wire.server.trim().trimEnd('/')
             // Validate server URL using java.net.URI

@@ -80,4 +80,24 @@ class PaymentUriTest {
     fun eip681_without_transfer_ignores_address_param() {
         assertEquals("0xAbC", parsePaymentQr("ethereum:0xAbC@1?address=0xEvil").address)
     }
+
+    @Test
+    fun transfer_in_query_param_is_not_transfer_function() {
+        assertEquals("0xAbC", parsePaymentQr("ethereum:0xAbC@1?memo=/transfer&address=0xEvil").address)
+    }
+
+    @Test
+    fun transferFrom_is_not_exact_transfer_match() {
+        assertEquals("0xAbC", parsePaymentQr("ethereum:0xAbC@1/transferFrom?address=0xEvil").address)
+    }
+
+    @Test
+    fun transfer_without_chain_id_extracts_recipient() {
+        assertEquals("0xRecipient", parsePaymentQr("ethereum:0xToken/transfer?address=0xRecipient").address)
+    }
+
+    @Test
+    fun transfer_with_chain_id_extracts_recipient() {
+        assertEquals("0xRecipient", parsePaymentQr("ethereum:0xToken@1/transfer?address=0xRecipient").address)
+    }
 }
