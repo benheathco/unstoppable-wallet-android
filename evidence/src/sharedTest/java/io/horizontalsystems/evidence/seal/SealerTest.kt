@@ -9,28 +9,26 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
-import org.robolectric.annotation.GraphicsMode
+import androidx.test.ext.junit.runners.AndroidJUnit4
 
-@RunWith(RobolectricTestRunner::class)
-@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@RunWith(AndroidJUnit4::class)
 class SealerTest {
     private fun bmp() = Bitmap.createBitmap(200, 200, Bitmap.Config.ARGB_8888).apply { eraseColor(Color.RED) }
 
     private val base = SealMeta("req-1", "Ethereum", "0xabc", "100.0", "2026-10-04T00:00:00Z", "dev-1", "1.0", null)
 
     @Test
-    fun `sealing with the same meta is byte-identical`() {
+    fun sealing_with_the_same_meta_is_byte_identical() {
         assertArrayEquals(sealPng(bmp(), base), sealPng(bmp(), base))
     }
 
     @Test
-    fun `different captureId reseals to different bytes`() {
+    fun different_captureId_reseals_to_different_bytes() {
         assertFalse(sha256Hex(sealPng(bmp(), base)) == sha256Hex(sealPng(bmp(), base.copy(captureId = "srv-9"))))
     }
 
     @Test
-    fun `banner is appended below the source so no evidence pixels are covered`() {
+    fun banner_is_appended_below_the_source_so_no_evidence_pixels_are_covered() {
         val sealed = sealPng(bmp(), base).let { BitmapFactory.decodeByteArray(it, 0, it.size) }
         assertEquals(200, sealed.width)
         assertTrue(sealed.height > 200)
@@ -39,7 +37,7 @@ class SealerTest {
     }
 
     @Test
-    fun `address is truncated in the middle`() {
+    fun address_is_truncated_in_the_middle() {
         assertEquals("0x1234…cdef", truncateMiddle("0x1234567890abcdef", 6, 4))
         assertEquals("0xabc", truncateMiddle("0xabc", 6, 4))
     }

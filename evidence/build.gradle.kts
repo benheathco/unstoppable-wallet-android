@@ -30,8 +30,16 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    // Android-dependent tests run on the JVM (Robolectric) and on a device from one source
+    sourceSets {
+        getByName("test").kotlin.directories.add("src/sharedTest/java")
+        getByName("androidTest").kotlin.directories.add("src/sharedTest/java")
+    }
+
     testOptions {
         unitTests.isIncludeAndroidResources = true
+        // Real text rasterization, so seal tests see the banner (Robolectric default draws nothing)
+        unitTests.all { it.systemProperty("robolectric.graphicsMode", "NATIVE") }
     }
 }
 
@@ -48,9 +56,14 @@ dependencies {
     testImplementation(libs.junit)
     testImplementation(libs.robolectric)
     testImplementation(libs.androidx.test.core)
+    testImplementation(libs.junit.ext)
     testImplementation(libs.androidx.work.testing)
     testImplementation(libs.okhttp.mockwebserver)
     testImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(libs.junit.ext)
+    androidTestImplementation(libs.test.runner)
+    androidTestImplementation(libs.androidx.test.core)
     androidTestImplementation(libs.androidx.work.testing)
+    androidTestImplementation(libs.okhttp.mockwebserver)
+    androidTestImplementation(libs.kotlinx.coroutines.test)
 }

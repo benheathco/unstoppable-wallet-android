@@ -31,12 +31,10 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
-import org.robolectric.annotation.GraphicsMode
+import androidx.test.ext.junit.runners.AndroidJUnit4
 import java.io.File
 
-@RunWith(RobolectricTestRunner::class)
-@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@RunWith(AndroidJUnit4::class)
 class UploadWorkerTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val db = Room.inMemoryDatabaseBuilder(context, EvidenceDb::class.java).allowMainThreadQueries().build()

@@ -37,13 +37,11 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
-import org.robolectric.annotation.GraphicsMode
+import androidx.test.ext.junit.runners.AndroidJUnit4
 import java.io.File
 
 @OptIn(ExperimentalCoroutinesApi::class)
-@RunWith(RobolectricTestRunner::class)
-@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@RunWith(AndroidJUnit4::class)
 class RecorderIntegrationTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val db = Room.inMemoryDatabaseBuilder(context, EvidenceDb::class.java).allowMainThreadQueries().build()
