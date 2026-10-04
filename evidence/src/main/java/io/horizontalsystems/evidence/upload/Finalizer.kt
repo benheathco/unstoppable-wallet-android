@@ -23,6 +23,8 @@ suspend fun finalizeBundle(context: Context, dao: EvidenceDao, clientRequestId: 
     val capture = dao.capture(clientRequestId) ?: return
     if (capture.state != CaptureState.OPEN) return
     val kinds = dao.artifacts(clientRequestId).map { it.artifactKind }.distinct()
+    // The server rejects an empty expected_artifacts; a bundle with nothing to upload stays OPEN
+    if (kinds.isEmpty()) return
     dao.upsertCapture(
         capture.copy(
             expectedArtifacts = Json.encodeToString(ListSerializer(String.serializer()), kinds),

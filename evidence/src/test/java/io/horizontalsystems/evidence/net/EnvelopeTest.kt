@@ -77,6 +77,18 @@ class EnvelopeTest {
     }
 
     @Test
+    fun `candidate fields are clamped to server limits with full values kept in notes`() {
+        val longMemo = "m".repeat(300)
+        val r = send().copy(memo = longMemo, assetSymbol = "S".repeat(50))
+        val c = sendCandidates(r).single()
+        assertEquals(128, c.memo.length)
+        assertEquals(32, c.asset.length)
+        assertTrue(sendNotes(r).contains(longMemo))
+        assertEquals(255, Candidate("a".repeat(400), "n".repeat(100), Candidate.DEPOSIT_ADDRESS).clamped().identifier.length)
+        assertEquals(64, Candidate("a", "n".repeat(100), Candidate.DEPOSIT_ADDRESS).clamped().network.length)
+    }
+
+    @Test
     fun `operator note is appended to send notes`() {
         assertTrue(sendNotes(send().copy(notes = "Shop on 5th")).contains("Shop on 5th"))
     }

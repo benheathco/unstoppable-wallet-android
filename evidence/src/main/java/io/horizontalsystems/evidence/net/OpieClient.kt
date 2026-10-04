@@ -54,7 +54,8 @@ class OpieClient(
             }
             when {
                 code >= 500 -> lastError = "Capture registration returned $code"
-                code !in 200..299 -> return CaptureResult.Err("Capture registration returned $code: ${body.take(200)}", false)
+                code !in 200..299 ->
+                    return CaptureResult.Err("Capture registration returned $code: ${body.take(200)}", code in RETRY_LATER)
                 else -> {
                     val id = parseObject(body)?.get("id")?.jsonPrimitive?.content
                     if (id.isNullOrEmpty()) {
@@ -100,7 +101,7 @@ class OpieClient(
             return UploadResult.Err("Upload failed: ${e.message}", true)
         }
         if (code !in 200..299) {
-            return UploadResult.Err("Upload returned $code: ${body.take(200)}", code >= 500)
+            return UploadResult.Err("Upload returned $code: ${body.take(200)}", code >= 500 || code in RETRY_LATER)
         }
         val serverHash = parseObject(body)?.get("file_hash")?.jsonPrimitive?.content
         return if (serverHash != null && serverHash.equals(clientSha256, ignoreCase = true)) {
@@ -124,6 +125,10 @@ class OpieClient(
     companion object {
         const val EVIDENCE_CAPTURES_PATH = "/opie/api/v1/evidence-captures/"
         const val VAULT_FILES_PATH = "/opie/api/v1/vault-files/"
+
+        // Not a verdict on the evidence: a revoked/rotated key (spec §6 — keep queueing until
+        // re-enrolled), a timeout or throttling. Only other 4xx are final.
+        private val RETRY_LATER = setOf(401, 403, 408, 429)
         private val JSON = "application/json".toMediaType()
         private val PNG = "image/png".toMediaType()
     }

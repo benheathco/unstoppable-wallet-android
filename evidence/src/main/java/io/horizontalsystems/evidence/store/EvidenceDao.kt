@@ -20,6 +20,9 @@ interface EvidenceDao {
     @Query("SELECT * FROM capture WHERE state = :state ORDER BY openedAt")
     suspend fun capturesInState(state: String): List<CaptureEntity>
 
+    @Query("SELECT * FROM capture WHERE state = 'OPEN' ORDER BY openedAt DESC LIMIT 1")
+    suspend fun newestOpen(): CaptureEntity?
+
     // Every bundle not yet COMPLETE — the operator's pending queue
     @Query("SELECT * FROM capture WHERE state != 'COMPLETE' ORDER BY openedAt")
     fun openBundles(): Flow<List<CaptureEntity>>

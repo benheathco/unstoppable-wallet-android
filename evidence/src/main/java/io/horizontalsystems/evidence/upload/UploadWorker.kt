@@ -23,6 +23,8 @@ import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 import java.io.File
+import java.io.FileNotFoundException
+import kotlinx.coroutines.CancellationException
 
 /** What the worker needs; config returns null while the device is not enrolled. */
 class UploadDependencies(
@@ -39,7 +41,16 @@ class UploadDependencies(
  */
 class UploadWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
 
-    override suspend fun doWork(): Result {
+    // Anything unexpected (SQLite, OOM while sealing…) is transient: the rows are untouched, try again
+    override suspend fun doWork(): Result = try {
+        upload()
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        Result.retry()
+    }
+
+    private suspend fun upload(): Result {
         val deps = dependencies ?: return Result.retry()
         val config = deps.config() ?: return Result.retry()
         val clientRequestId = inputData.getString(KEY_CLIENT_REQUEST_ID) ?: return Result.failure()
@@ -49,7 +60,7 @@ class UploadWorker(context: Context, params: WorkerParameters) : CoroutineWorker
         if (capture.state != CaptureState.READY && capture.state != CaptureState.REGISTERED) return Result.success()
 
         if (capture.serverCaptureId == null) {
-            when (val result = deps.client.createCapture(config.serverUrl, config.apiKey, envelope(capture, config))) {
+            when (val result = register(deps, config, capture)) {
                 is CaptureResult.Ok -> {
                     dao.setServerCaptureId(clientRequestId, result.captureId)
                     dao.markState(clientRequestId, CaptureState.REGISTERED)
@@ -66,7 +77,13 @@ class UploadWorker(context: Context, params: WorkerParameters) : CoroutineWorker
 
         for (pending in dao.pendingArtifacts(clientRequestId)) {
             val artifact = reseal(dao, pending, captureId)
-            val bytes = File(artifact.filePath).readBytes()
+            val bytes = try {
+                File(artifact.filePath).readBytes()
+            } catch (e: FileNotFoundException) {
+                // The sealed file is gone: it can never be verified, so say so rather than crash-loop
+                dao.markArtifact(artifact.id, ArtifactState.VERIFY_FAILED, null)
+                continue
+            }
             val result = deps.client.uploadArtifact(
                 config.serverUrl, config.apiKey, bytes, File(artifact.filePath).name,
                 capture.projectUuid, captureId, artifact.artifactKind, artifact.clientSha256,
@@ -86,15 +103,34 @@ class UploadWorker(context: Context, params: WorkerParameters) : CoroutineWorker
         return Result.success()
     }
 
-    private fun envelope(capture: CaptureEntity, config: EvidenceConfig): String = buildEnvelope(
-        projectUuid = capture.projectUuid,
-        capturedAtIso = capture.capturedAtIso,
-        clientRequestId = capture.clientRequestId,
-        expectedArtifacts = json.decodeFromString(ListSerializer(String.serializer()), capture.expectedArtifacts),
-        candidates = json.decodeFromString(ListSerializer(Candidate.serializer()), capture.candidatesJson),
-        notes = capture.notes,
-        appVersion = config.appVersion,
-    )
+    /**
+     * A project without crypto attribution 400s any candidates. That rejects the attribution
+     * hint, not the evidence: register again without them, keeping them readable in notes.
+     */
+    private suspend fun register(deps: UploadDependencies, config: EvidenceConfig, capture: CaptureEntity): CaptureResult {
+        val candidates = json.decodeFromString(ListSerializer(Candidate.serializer()), capture.candidatesJson)
+        val result = deps.client.createCapture(config.serverUrl, config.apiKey, envelope(capture, config, candidates, capture.notes))
+        if (result !is CaptureResult.Err || result.retryable || candidates.isEmpty() || "\"candidates\"" !in result.message) {
+            return result
+        }
+        val notes = listOfNotNull(
+            capture.notes,
+            "candidates not registered (project has no crypto attribution):",
+            *candidates.map { "${it.identifier} ${it.network} ${it.asset}".trim() }.toTypedArray(),
+        ).joinToString("\n")
+        return deps.client.createCapture(config.serverUrl, config.apiKey, envelope(capture, config, emptyList(), notes))
+    }
+
+    private fun envelope(capture: CaptureEntity, config: EvidenceConfig, candidates: List<Candidate>, notes: String?) =
+        buildEnvelope(
+            projectUuid = capture.projectUuid,
+            capturedAtIso = capture.capturedAtIso,
+            clientRequestId = capture.clientRequestId,
+            expectedArtifacts = json.decodeFromString(ListSerializer(String.serializer()), capture.expectedArtifacts),
+            candidates = candidates,
+            notes = notes,
+            appVersion = config.appVersion,
+        )
 
     /**
      * Re-stamps the authoritative server id into the banner and re-hashes. Sealing is

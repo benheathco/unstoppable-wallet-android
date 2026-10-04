@@ -20,6 +20,14 @@ data class Candidate(
     // Machine-captured by the wallet (QR decode / send flow), not typed by the operator
     @SerialName("extraction_method") val extractionMethod: String = EXTRACTION_DETECTED,
 ) {
+    // CandidateSerializer max_lengths: an over-long field would 400 the whole capture
+    fun clamped(): Candidate = copy(
+        identifier = identifier.take(255),
+        network = network.take(64),
+        asset = asset.take(32),
+        memo = memo.take(128),
+    )
+
     companion object {
         const val DEPOSIT_ADDRESS = "DEPOSIT_ADDRESS"
         const val EXTRACTION_DETECTED = "dom_detected"
@@ -85,7 +93,7 @@ fun sendCandidates(r: SendRecord): List<Candidate> = listOf(
         subjectType = Candidate.DEPOSIT_ADDRESS,
         asset = r.assetSymbol,
         memo = r.memo.orEmpty(),
-    )
+    ).clamped()
 )
 
 fun sendNotes(r: SendRecord): String = buildList {

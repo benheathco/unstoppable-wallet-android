@@ -26,6 +26,7 @@ import io.horizontalsystems.evidence.store.EvidenceDao
 import io.horizontalsystems.evidence.store.EvidenceDb
 import io.horizontalsystems.evidence.upload.UploadDependencies
 import io.horizontalsystems.evidence.upload.UploadWorker
+import io.horizontalsystems.evidence.upload.enqueueUpload
 import io.horizontalsystems.evidence.upload.finalizeBundle
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -68,6 +69,13 @@ class DefaultEvidenceRecorder(
 
     init {
         UploadWorker.dependencies = UploadDependencies(dao, client, config)
+        // A bundle finalized just before process death may have no queued work; KEEP makes this idempotent
+        scope.launch {
+            guard {
+                (dao.capturesInState(CaptureState.READY) + dao.capturesInState(CaptureState.REGISTERED))
+                    .forEach { enqueueUpload(context, it.clientRequestId) }
+            }
+        }
     }
 
     override val status: StateFlow<EvidenceStatus> = dao.openBundles()
@@ -81,7 +89,7 @@ class DefaultEvidenceRecorder(
         val clientRequestId = UUID.randomUUID().toString()
         val capturedAt = now()
         val candidates = decoded.address?.let {
-            listOf(Candidate(identifier = it, network = network.orEmpty(), subjectType = Candidate.DEPOSIT_ADDRESS))
+            listOf(Candidate(identifier = it, network = network.orEmpty(), subjectType = Candidate.DEPOSIT_ADDRESS).clamped())
         }.orEmpty()
         val notes = listOfNotNull(
             "scan",
@@ -103,7 +111,8 @@ class DefaultEvidenceRecorder(
     }
 
     override fun recordSend(send: SendRecord, confirmationView: View) = guard {
-        recordSend(send, renderView(confirmationView))
+        // A failed render (e.g. hardware bitmaps on a software canvas) still records the send
+        recordSend(send, runCatching { renderView(confirmationView) }.getOrNull())
     }
 
     /** [confirmation] is the already-rendered confirmation screen; null records the send data only. */
@@ -111,7 +120,8 @@ class DefaultEvidenceRecorder(
         val cfg = config() ?: return@guard
         val image = confirmation?.copy(Bitmap.Config.ARGB_8888, false)
         val network = mapNetworkKey(send.network).key
-        val open = openBundleId?.let { id -> runBlocking(Dispatchers.IO) { dao.capture(id) } }
+        // After process death the in-memory id is gone: fall back to the newest OPEN bundle
+        val open = runBlocking(Dispatchers.IO) { openBundleId?.let { dao.capture(it) } ?: dao.newestOpen() }
             ?.takeIf { it.state == CaptureState.OPEN }
 
         val capture = if (open != null) {

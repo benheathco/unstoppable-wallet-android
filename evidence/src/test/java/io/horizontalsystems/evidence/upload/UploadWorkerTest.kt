@@ -192,6 +192,60 @@ class UploadWorkerTest {
     }
 
     @Test
+    fun unauthorized_registration_retries_and_keeps_bundle_queued() = runBlocking {
+        seedReadyBundle()
+        server.enqueue(MockResponse().setResponseCode(401))
+        server.start()
+        UploadWorker.dependencies = deps(liveUrl())
+
+        assertEquals(ListenableWorker.Result.retry(), runWorker())
+        assertEquals(CaptureState.READY, dao.capture("req-1")!!.state)
+    }
+
+    @Test
+    fun candidates_rejected_registers_again_without_them_and_keeps_them_in_notes() = runBlocking {
+        seedReadyBundle()
+        server.enqueue(MockResponse().setResponseCode(400).setBody("""{"candidates":["Candidates require a project with crypto attribution enabled."]}"""))
+        server.enqueue(MockResponse().setResponseCode(201).setBody("""{"id":"cap-9"}"""))
+        server.enqueue(MockResponse().setResponseCode(201).setBody("""{"file_hash":"${resealedHash("cap-9")}"}"""))
+        server.start()
+        UploadWorker.dependencies = deps(liveUrl())
+
+        assertEquals(ListenableWorker.Result.success(), runWorker())
+        assertEquals(CaptureState.COMPLETE, dao.capture("req-1")!!.state)
+        server.takeRequest()
+        val retryBody = server.takeRequest().body.readUtf8()
+        assertTrue(retryBody, !retryBody.contains("\"candidates\""))
+        assertTrue(retryBody, retryBody.contains("0xabc"))
+        assertTrue(retryBody, retryBody.contains("\"client_request_id\":\"req-1\""))
+    }
+
+    @Test
+    fun missing_artifact_file_marks_it_verify_failed_instead_of_crashing() = runBlocking {
+        seedReadyBundle()
+        File(dir, "src.png").delete()
+        File(dir, "sealed.png").delete()
+        server.enqueue(MockResponse().setResponseCode(201).setBody("""{"id":"cap-9"}"""))
+        server.start()
+        UploadWorker.dependencies = deps(liveUrl())
+
+        assertEquals(ListenableWorker.Result.success(), runWorker())
+        assertEquals(ArtifactState.VERIFY_FAILED, dao.artifacts("req-1").single().state)
+        assertEquals(CaptureState.FAILED, dao.capture("req-1")!!.state)
+    }
+
+    @Test
+    fun finalize_without_artifacts_leaves_bundle_open() = runBlocking {
+        WorkManagerTestInitHelper.initializeTestWorkManager(context)
+        dao.upsertCapture(CaptureEntity("req-2", null, null, null, null, "proj-1", "mobile_app", "[]", CaptureState.OPEN, 1L))
+
+        finalizeBundle(context, dao, "req-2")
+
+        assertEquals(CaptureState.OPEN, dao.capture("req-2")!!.state)
+        assertTrue(WorkManager.getInstance(context).getWorkInfosForUniqueWork(UploadWorker.uniqueName("req-2")).get().isEmpty())
+    }
+
+    @Test
     fun upload_server_error_retries_and_keeps_artifact_pending() = runBlocking {
         seedReadyBundle()
         server.enqueue(MockResponse().setResponseCode(201).setBody("""{"id":"cap-9"}"""))

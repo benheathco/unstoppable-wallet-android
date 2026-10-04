@@ -51,6 +51,26 @@ class OpieClientTest {
     }
 
     @Test
+    fun `createCapture auth and throttling rejections are retryable later`() = runBlocking {
+        // 408 is left out: OkHttp itself re-sends a request that got a 408
+        listOf(401, 403, 429).forEach { s.enqueue(MockResponse().setResponseCode(it)) }
+        s.start()
+        repeat(3) {
+            val r = client.createCapture(url(), "k", "{}")
+            assertTrue("$r", r is CaptureResult.Err && r.retryable)
+        }
+        assertEquals(3, s.requestCount)
+    }
+
+    @Test
+    fun `uploadArtifact throttling is retryable`() = runBlocking {
+        s.enqueue(MockResponse().setResponseCode(429))
+        s.start()
+        val r = client.uploadArtifact(url(), "k", ByteArray(3), "f.png", "p", "cap-9", "screenshot", "cafe")
+        assertTrue(r is UploadResult.Err && r.retryable)
+    }
+
+    @Test
     fun `createCapture retries an id-less 2xx`() = runBlocking {
         s.enqueue(MockResponse().setResponseCode(200).setBody("""{}"""))
         s.enqueue(MockResponse().setResponseCode(200).setBody("""{"id":"cap-9"}"""))

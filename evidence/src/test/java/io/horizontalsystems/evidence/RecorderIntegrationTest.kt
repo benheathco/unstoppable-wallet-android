@@ -14,6 +14,7 @@ import io.horizontalsystems.evidence.model.SendRecord
 import io.horizontalsystems.evidence.seal.sha256Hex
 import io.horizontalsystems.evidence.store.ArtifactEntity
 import io.horizontalsystems.evidence.store.ArtifactState
+import io.horizontalsystems.evidence.store.CaptureEntity
 import io.horizontalsystems.evidence.store.CaptureState
 import io.horizontalsystems.evidence.store.EvidenceDao
 import io.horizontalsystems.evidence.store.EvidenceDb
@@ -199,6 +200,45 @@ class RecorderIntegrationTest {
         awaitIdle()
         val artifact = dao.artifacts(only().clientRequestId).single()
         assertTrue(File(artifact.filePath).length() > 0)
+    }
+
+    @Test
+    fun render_failure_still_records_the_send_and_finalizes() = runBlocking {
+        val recorder = recorder()
+        recorder.recordScan(frame(), DecodedScan("0xabc", "0xabc", "ethereum"))
+        val broken = object : View(context) {
+            override fun draw(canvas: android.graphics.Canvas) = throw IllegalArgumentException("hardware bitmap")
+        }.apply { layout(0, 0, 50, 50) }
+        recorder.recordSend(send(txHash = "0xtx"), broken)
+        awaitIdle()
+
+        val capture = dao.capturesInState(CaptureState.READY).single()
+        assertTrue(capture.notes!!.contains("0xtx"))
+        assertEquals("""["scan_frame"]""", capture.expectedArtifacts)
+    }
+
+    @Test
+    fun a_new_recorder_attaches_a_send_to_the_bundle_left_open_before_process_death() = runBlocking {
+        recorder().recordScan(frame(), DecodedScan("0xabc", "0xabc", "ethereum"))
+        awaitIdle()
+        recorder().recordSend(send(txHash = "0xtx"), frame())
+        awaitIdle()
+
+        val capture = dao.capturesInState(CaptureState.READY).single()
+        assertEquals(listOf("scan_frame", "screenshot"), dao.artifacts(capture.clientRequestId).map { it.artifactKind })
+    }
+
+    @Test
+    fun startup_requeues_bundles_finalized_before_process_death() = runBlocking {
+        dao.upsertCapture(CaptureEntity("req-r", null, null, null, null, "proj-1", "mobile_app", "[\"scan_frame\"]", CaptureState.READY, 1L))
+        dao.upsertCapture(CaptureEntity("req-g", "cap-1", null, null, null, "proj-1", "mobile_app", "[\"scan_frame\"]", CaptureState.REGISTERED, 1L))
+        recorder()
+        val workManager = WorkManager.getInstance(context)
+        withTimeout(10_000) {
+            while (listOf("req-r", "req-g").any { workManager.getWorkInfosForUniqueWork(UploadWorker.uniqueName(it)).get().isEmpty() }) {
+                delay(50)
+            }
+        }
     }
 
     @Test
