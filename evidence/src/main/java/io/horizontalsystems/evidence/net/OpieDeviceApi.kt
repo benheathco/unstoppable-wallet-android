@@ -8,6 +8,7 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -26,22 +27,49 @@ class OpieDeviceApi(private val http: OkHttpClient = OkHttpClient()) {
 
     suspend fun captureProjects(serverUrl: String, apiKey: String): DeviceApiResult<List<OpieProject>> {
         val projects = mutableListOf<OpieProject>()
+        val visited = mutableSetOf<String>()
         var next: String? = "$serverUrl$PROJECTS_PATH"
+        val serverHttpUrl = runCatching { serverUrl.toHttpUrl() }.getOrNull()
+            ?: return DeviceApiResult.Failed("Invalid server URL")
+        var pageCount = 0
+
         while (next != null) {
+            if (pageCount >= 50) return DeviceApiResult.Failed("Unexpected response from Opie")
+            if (next in visited) return DeviceApiResult.Failed("Unexpected response from Opie")
+            visited.add(next)
+            pageCount++
+
             val (code, body) = get(next, apiKey) ?: return DeviceApiResult.Failed("Opie is unreachable")
             if (code == 401 || code == 403) return DeviceApiResult.Unauthorized
             if (code !in 200..299) return DeviceApiResult.Failed("Opie returned $code")
             val page = runCatching { Json.parseToJsonElement(body).jsonObject }.getOrNull()
                 ?: return DeviceApiResult.Failed("Unexpected response from Opie")
-            page["results"]?.jsonArray?.forEach { item ->
-                val o = item.jsonObject
-                projects += OpieProject(
-                    uuid = o.getValue("uuid").jsonPrimitive.content,
-                    name = o.getValue("name").jsonPrimitive.content,
-                    attributionEnabled = o["crypto_attribution_enabled"]?.jsonPrimitive?.boolean ?: false,
-                )
+
+            // Parse results with exception handling
+            val results = page["results"]?.jsonArray
+            if (results != null) {
+                for (item in results) {
+                    try {
+                        val o = item.jsonObject
+                        projects += OpieProject(
+                            uuid = o.getValue("uuid").jsonPrimitive.content,
+                            name = o.getValue("name").jsonPrimitive.content,
+                            attributionEnabled = o["crypto_attribution_enabled"]?.jsonPrimitive?.boolean ?: false,
+                        )
+                    } catch (e: Exception) {
+                        return DeviceApiResult.Failed("Unexpected response from Opie")
+                    }
+                }
             }
-            next = page["next"]?.jsonPrimitive?.contentOrNull?.let { absolute(serverUrl, it) }
+
+            next = page["next"]?.jsonPrimitive?.contentOrNull?.let { nextUrl ->
+                val resolved = runCatching { serverHttpUrl.resolve(nextUrl) }.getOrNull()
+                if (resolved != null && isSameHost(serverHttpUrl, resolved)) {
+                    resolved.toString()
+                } else {
+                    return DeviceApiResult.Failed("Unexpected response from Opie")
+                }
+            }
         }
         return DeviceApiResult.Ok(projects)
     }
@@ -57,9 +85,12 @@ class OpieDeviceApi(private val http: OkHttpClient = OkHttpClient()) {
         } catch (e: IOException) {
             return DeviceApiResult.Failed("Opie is unreachable")
         }
-        // 401/403 = the key is already revoked or unknown: as good as revoked
-        return if (code in 200..299 || code == 401 || code == 403) DeviceApiResult.Ok(Unit)
-        else DeviceApiResult.Failed("Opie returned $code")
+        // 401 = the key is already revoked or unknown: as good as revoked
+        return when {
+            code in 200..299 -> DeviceApiResult.Ok(Unit)
+            code == 401 -> DeviceApiResult.Ok(Unit)
+            else -> DeviceApiResult.Failed("Opie returned $code")
+        }
     }
 
     private suspend fun get(url: String, apiKey: String): Pair<Int, String>? = try {
@@ -71,7 +102,9 @@ class OpieDeviceApi(private val http: OkHttpClient = OkHttpClient()) {
         null
     }
 
-    private fun absolute(serverUrl: String, next: String) = if (next.startsWith("http")) next else "$serverUrl$next"
+    private fun isSameHost(base: okhttp3.HttpUrl, resolved: okhttp3.HttpUrl): Boolean {
+        return base.scheme == resolved.scheme && base.host == resolved.host && base.port == resolved.port
+    }
 
     companion object {
         const val PROJECTS_PATH = "/opie/api/v1/projects/?capture_eligible=1"
