@@ -7,4 +7,5 @@ data class EvidenceConfig(
     val projectUuid: String,
     val deviceId: String,
     val appVersion: String,
+    val attributionEnabled: Boolean = true,
 )

@@ -250,6 +250,25 @@ class RecorderIntegrationTest {
     }
 
     @Test
+    fun attribution_disabled_project_sends_no_candidates() = runBlocking {
+        val noAttribution = config.copy(attributionEnabled = false)
+        recorder(config = noAttribution).recordScan(frame(), DecodedScan("0xabc", "0xabc", "ethereum"))
+        awaitIdle()
+        assertEquals("[]", only().candidatesJson)
+    }
+
+    @Test
+    fun submitAll_finalizes_only_bundles_with_artifacts() = runBlocking {
+        val recorder = recorder()
+        recorder.recordScan(frame(), DecodedScan("0xabc", "0xabc", "ethereum"))
+        awaitIdle()
+        dao.upsertCapture(CaptureEntity("empty", null, null, null, null, "proj-1", "mobile_app", "[]", CaptureState.OPEN, 1L))
+        assertEquals(1, recorder.submitAll())
+        assertEquals(1, dao.capturesInState(CaptureState.READY).size)
+        assertEquals(CaptureState.OPEN, dao.capture("empty")!!.state)
+    }
+
+    @Test
     fun recorder_never_throws_into_the_wallet() {
         val recycled = frame().apply { recycle() }
         recorder().recordScan(recycled, DecodedScan("0xabc", "0xabc", "ethereum"))

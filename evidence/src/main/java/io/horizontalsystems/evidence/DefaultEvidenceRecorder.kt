@@ -57,6 +57,7 @@ class DefaultEvidenceRecorder(
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO.limitedParallelism(1)),
     private val now: () -> String = { Instant.now().toString() },
     client: OpieClient = OpieClient(),
+    onAuthRejected: () -> Unit = {},
 ) : EvidenceRecorder {
 
     // The bundle a later send attaches to: the most recent one this recorder opened
@@ -68,7 +69,7 @@ class DefaultEvidenceRecorder(
     private val queue = Mutex()
 
     init {
-        UploadWorker.dependencies = UploadDependencies(dao, client, config)
+        UploadWorker.dependencies = UploadDependencies(dao, client, config, onAuthRejected)
         // A bundle finalized just before process death may have no queued work; KEEP makes this idempotent
         scope.launch {
             guard {
@@ -88,7 +89,7 @@ class DefaultEvidenceRecorder(
         val network = decoded.network?.let { mapNetworkKey(it).key }
         val clientRequestId = UUID.randomUUID().toString()
         val capturedAt = now()
-        val candidates = decoded.address?.let {
+        val candidates = if (!cfg.attributionEnabled) emptyList() else decoded.address?.let {
             listOf(Candidate(identifier = it, network = network.orEmpty(), subjectType = Candidate.DEPOSIT_ADDRESS).clamped())
         }.orEmpty()
         val notes = listOfNotNull(
@@ -129,13 +130,13 @@ class DefaultEvidenceRecorder(
                 network = network,
                 address = send.address,
                 notes = listOfNotNull(open.notes, sendNotes(send)).joinToString("\n"),
-                candidatesJson = encode(mergeCandidates(decode(open.candidatesJson), sendCandidates(send))),
+                candidatesJson = encode(mergeCandidates(decode(open.candidatesJson), if (cfg.attributionEnabled) sendCandidates(send) else emptyList())),
             )
         } else {
             CaptureEntity(
                 UUID.randomUUID().toString(), null, network, send.address, sendNotes(send), cfg.projectUuid,
                 CAPTURE_METHOD_MOBILE_APP, "[]", CaptureState.OPEN, System.currentTimeMillis(),
-                encode(sendCandidates(send)), send.capturedAtIso,
+                encode(if (cfg.attributionEnabled) sendCandidates(send) else emptyList()), send.capturedAtIso,
             )
         }
         writeNow(capture)
@@ -152,6 +153,19 @@ class DefaultEvidenceRecorder(
             image?.let { writeArtifact(clientRequestId, KIND_SCREENSHOT, it, meta) }
             if (finalize) finalizeBundle(context, dao, clientRequestId)
         }
+    }
+
+    /** Manual Submit: finalize every OPEN bundle that has something to upload. */
+    fun submitAll(): Int = runBlocking(Dispatchers.IO) {
+        var submitted = 0
+        dao.capturesInState(CaptureState.OPEN).forEach { capture ->
+            if (dao.artifacts(capture.clientRequestId).isNotEmpty()) {
+                finalizeBundle(context, dao, capture.clientRequestId)
+                submitted++
+            }
+        }
+        openBundleId = null
+        submitted
     }
 
     private fun enqueue(work: suspend () -> Unit) {

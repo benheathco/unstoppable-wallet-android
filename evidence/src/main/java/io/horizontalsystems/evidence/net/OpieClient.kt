@@ -18,13 +18,13 @@ sealed class CaptureResult {
     data class Ok(val captureId: String) : CaptureResult()
 
     // retryable = transient (network/5xx/untrustworthy 2xx); false = 4xx rejection, final
-    data class Err(val message: String, val retryable: Boolean) : CaptureResult()
+    data class Err(val message: String, val retryable: Boolean, val code: Int? = null) : CaptureResult()
 }
 
 sealed class UploadResult {
     object Verified : UploadResult()
     data class HashMismatch(val server: String?, val client: String) : UploadResult()
-    data class Err(val message: String, val retryable: Boolean) : UploadResult()
+    data class Err(val message: String, val retryable: Boolean, val code: Int? = null) : UploadResult()
 }
 
 /** Opie evidence endpoints — the same wire contract as the KnowYourChain extension. */
@@ -55,7 +55,7 @@ class OpieClient(
             when {
                 code >= 500 -> lastError = "Capture registration returned $code"
                 code !in 200..299 ->
-                    return CaptureResult.Err("Capture registration returned $code: ${body.take(200)}", code in RETRY_LATER)
+                    return CaptureResult.Err("Capture registration returned $code: ${body.take(200)}", code in RETRY_LATER, code)
                 else -> {
                     val id = parseObject(body)?.get("id")?.jsonPrimitive?.content
                     if (id.isNullOrEmpty()) {
@@ -101,7 +101,7 @@ class OpieClient(
             return UploadResult.Err("Upload failed: ${e.message}", true)
         }
         if (code !in 200..299) {
-            return UploadResult.Err("Upload returned $code: ${body.take(200)}", code >= 500 || code in RETRY_LATER)
+            return UploadResult.Err("Upload returned $code: ${body.take(200)}", code >= 500 || code in RETRY_LATER, code)
         }
         val serverHash = parseObject(body)?.get("file_hash")?.jsonPrimitive?.content
         return if (serverHash != null && serverHash.equals(clientSha256, ignoreCase = true)) {

@@ -56,7 +56,7 @@ class UploadWorkerTest {
     private fun config(serverUrl: String) = EvidenceConfig(serverUrl, "k", "proj-1", "dev-1", "1.0")
 
     private fun deps(serverUrl: String) =
-        UploadDependencies(dao, OpieClient(retryDelayMs = 10)) { config(serverUrl) }
+        UploadDependencies(dao, OpieClient(retryDelayMs = 10), { config(serverUrl) })
 
     private fun liveUrl() = server.url("/").toString().trimEnd('/')
 
@@ -198,6 +198,17 @@ class UploadWorkerTest {
 
         assertEquals(ListenableWorker.Result.retry(), runWorker())
         assertEquals(CaptureState.READY, dao.capture("req-1")!!.state)
+    }
+
+    @Test
+    fun unauthorized_registration_reports_auth_rejected() = runBlocking {
+        seedReadyBundle()
+        server.enqueue(MockResponse().setResponseCode(401))
+        server.start()
+        var rejected = false
+        UploadWorker.dependencies = UploadDependencies(dao, OpieClient(retryDelayMs = 10), { config(liveUrl()) }) { rejected = true }
+        runWorker()
+        assertTrue(rejected)
     }
 
     @Test
