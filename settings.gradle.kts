@@ -34,6 +34,7 @@ include(":components:icons")
 include(":components:chartview")
 include(":subscriptions-core")
 include(":evidence")
+include(":evidence-ui")
 if (file("subscriptions-google-play").exists()) {
     include(":subscriptions-google-play")
 }
