@@ -43,6 +43,8 @@ class KycEvidenceHooks(
         .map { it == null }
         .stateIn(CoroutineScope(SupervisorJob() + Dispatchers.Default), SharingStarted.Eagerly, !registered())
 
+    override val copyBalanceOnLongPress: Boolean get() = true
+
     override val settingsEntry = EvidenceSettingsEntry(
         title = R.string.Evidence_SettingsTitle,
         icon = io.horizontalsystems.walletkit.R.drawable.file_24,

@@ -27,12 +27,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import io.horizontalsystems.walletkit.R
+import io.horizontalsystems.walletkit.core.evidence.EvidenceHooksRegistry
+import io.horizontalsystems.walletkit.ui.helpers.TextHelper
 import io.horizontalsystems.walletkit.core.Caution
 import io.horizontalsystems.walletkit.core.chain.ChainRegistry
 import io.horizontalsystems.walletkit.core.isCustom
@@ -460,6 +463,7 @@ private fun TokenBalanceHeader(
     trailingContent: (@Composable () -> Unit)? = null,
 ) {
     val context = LocalContext.current
+    val view = LocalView.current
 
     Column(
         modifier = Modifier
@@ -510,6 +514,16 @@ private fun TokenBalanceHeader(
                 HudHelper.vibrate(context)
 
                 stat(page = StatPage.TokenPage, event = StatEvent.ToggleBalanceHidden)
+            },
+            onLongClickTitle = if (EvidenceHooksRegistry.hooks.copyBalanceOnLongPress) {
+                {
+                    balanceCopyText(balanceViewItem.coinBalance, balanceViewItem.balanceHidden)?.let {
+                        TextHelper.copyText(it)
+                        HudHelper.showSuccessMessage(view, R.string.Hud_Text_Copied)
+                    }
+                }
+            } else {
+                null
             },
             trailingContent = trailingContent,
         )

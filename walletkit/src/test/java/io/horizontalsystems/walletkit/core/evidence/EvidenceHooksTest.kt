@@ -12,5 +12,6 @@ class EvidenceHooksTest {
         assertFalse(hooks.needsRegistration.value)
         assertNull(hooks.registrationGate)
         assertNull(hooks.settingsEntry)
+        assertFalse(hooks.copyBalanceOnLongPress)
     }
 }

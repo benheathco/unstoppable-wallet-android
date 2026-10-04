@@ -36,7 +36,9 @@ data class BalanceViewItem(
     val warning: WarningText?,
     val balanceHidden: Boolean,
     val attentionIcon: AttentionIcon?,
-    val birthdayHeight: Long? = null
+    val birthdayHeight: Long? = null,
+    // Raw total the primary coin value was formatted from, for copy-to-clipboard.
+    val coinBalance: BigDecimal? = null,
 )
 
 data class WarningText(
@@ -406,7 +408,8 @@ class BalanceViewItemFactory {
             isWatchAccount = watchAccount,
             warning = item.warning?.warningText,
             balanceHidden = hideBalance,
-            attentionIcon = attentionIcon
+            attentionIcon = attentionIcon,
+            coinBalance = item.balanceData.total,
         )
     }
 

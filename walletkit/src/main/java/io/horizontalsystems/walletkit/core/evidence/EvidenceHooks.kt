@@ -22,6 +22,9 @@ interface EvidenceHooks {
     val needsRegistration: StateFlow<Boolean> get() = NOT_NEEDED
     val settingsEntry: EvidenceSettingsEntry? get() = null
 
+    // Long-press on the coin amount of the token page copies it as a plain number.
+    val copyBalanceOnLongPress: Boolean get() = false
+
     companion object {
         private val NOT_NEEDED = MutableStateFlow(false)
     }

@@ -39,6 +39,11 @@ class KycEvidenceHooksTest {
     }
 
     @Test
+    fun copies_balance_on_long_press() {
+        assertTrue(hooks.copyBalanceOnLongPress)
+    }
+
+    @Test
     fun unregistered_scan_is_not_recorded() {
         val ctx = ApplicationProvider.getApplicationContext<Context>()
         val h = KycEvidenceHooks(ctx, registered = { false }, record = { _, scan -> recorded += scan })
